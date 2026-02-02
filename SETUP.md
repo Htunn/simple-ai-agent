@@ -63,7 +63,7 @@ curl http://localhost:8000/health
 docker-compose up -d postgres redis
 
 # Update .env for local URLs
-# DATABASE_URL=postgresql+asyncpg://clawbot:clawbot_password@localhost:5432/clawbot
+# DATABASE_URL=postgresql+asyncpg://aiagent:aiagent_password@localhost:5432/aiagent
 # REDIS_URL=redis://localhost:6379/0
 
 # Run database migrations

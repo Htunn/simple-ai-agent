@@ -1,6 +1,6 @@
 # Component Diagram
 
-This diagram shows the high-level components of the Clawbot AI Agent system and their interactions.
+This diagram shows the high-level components of the Simple AI Agent system and their interactions.
 
 ## System Components
 
@@ -203,7 +203,7 @@ Session Manager → Repositories → PostgreSQL (slow path)
 flowchart TB
     subgraph Docker["Docker Compose"]
         subgraph AppContainer["App Container"]
-            App["Clawbot Application<br/>(Python 3.12)"]
+            App["Simple AI Agent<br/>(Python 3.12)"]
         end
         subgraph DBContainer["PostgreSQL Container"]
             DB[("PostgreSQL 16")]

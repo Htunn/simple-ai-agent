@@ -1,4 +1,4 @@
-# 🦞 Clawbot AI Agent
+# � Simple AI Agent
 
 A production-ready multi-channel AI agent inspired by OpenClaw, supporting Discord and Telegram with GitHub Models API integration (GPT-4, Claude Opus, Llama 3).
 
@@ -94,7 +94,7 @@ curl http://localhost:8000/health
 docker-compose up -d postgres redis
 
 # Update .env to use local database URLs
-# DATABASE_URL=postgresql+asyncpg://clawbot:clawbot_password@localhost:5432/clawbot
+# DATABASE_URL=postgresql+asyncpg://aiagent:aiagent_password@localhost:5432/aiagent
 # REDIS_URL=redis://localhost:6379/0
 
 # Run migrations
@@ -322,7 +322,7 @@ alembic downgrade -1
 
 ```bash
 # Build production image
-docker build -t clawbot-agent:latest .
+docker build -t simple-ai-agent:latest .
 
 # Run with docker-compose
 docker-compose up -d
@@ -374,7 +374,7 @@ docker-compose logs -f app
 docker-compose ps postgres
 
 # Check connection
-docker-compose exec postgres psql -U clawbot -c "SELECT 1"
+docker-compose exec postgres psql -U aiagent -c "SELECT 1"
 ```
 
 ### Redis Connection Issues
