@@ -1,0 +1,28 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Channel Integrations
+discord.py==2.3.2
+python-telegram-bot[all]==20.7
+httpx==0.26.0
+
+# Database
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+alembic==1.13.1
+redis[hiredis]==5.0.1
+
+# AI Integration
+openai==1.10.0
+
+# Utilities
+python-dotenv==1.0.0
+tenacity==8.2.3
+structlog==24.1.0
+slowapi==0.1.9
+
+# Security
+cryptography==42.0.0
