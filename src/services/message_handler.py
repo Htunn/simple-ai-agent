@@ -23,7 +23,12 @@ K8S_KEYWORDS = [
     'pod', 'pods', 'deployment', 'deployments', 'service', 'services',
     'namespace', 'namespaces', 'node', 'nodes', 'kubectl', 'k8s', 'kubernetes',
     'helm', 'container', 'containers', 'scale', 'configmap', 'secret',
-    'ingress', 'pvc', 'persistentvolume', 'statefulset', 'daemonset'
+    'ingress', 'pvc', 'persistentvolume', 'statefulset', 'daemonset',
+    # AIOps self-healing verbs
+    'restart', 'rollback', 'drain', 'cordon', 'uncordon', 'taint',
+    'evict', 'analyze logs', 'crashloop', 'crashlooping', 'crashing',
+    'oomkill', 'oom killed', 'not ready', 'notready', 'patch resource',
+    'runbook', 'playbook', 'rca', 'root cause', 'remediat',
 ]
 
 # Security scanning keywords for detection (simplePortChecker tools)
@@ -49,6 +54,7 @@ class MessageHandler:
         self.router = router
         self.ai_client = ai_client
         self.mcp_manager = mcp_manager
+        self.approval_manager = None  # Set by main.py after AIOps init
         logger.info(
             "message_handler_initialized",
             mcp_enabled=mcp_manager is not None,
@@ -291,6 +297,21 @@ class MessageHandler:
             user_id=message.user_id,
             content_length=len(message.content),
         )
+
+        # ── AIOps: check if this is an approval response first ────
+        if self.approval_manager and not message.content.startswith("/"):
+            try:
+                result = await self.approval_manager.process_response(
+                    message.content, message.user_id, message.user_id
+                )
+                if result is not None:
+                    # Send the approval_manager response back via router
+                    await self.router.send_message(
+                        message.channel_type, message.user_id, result
+                    )
+                    return  # message was an approval command
+            except Exception as e:
+                logger.warning("approval_process_response_error", error=str(e))
 
         # Check for commands
         if message.content.startswith("/"):
@@ -548,7 +569,101 @@ class MessageHandler:
                     response = f"📰 **Events{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n```\n{output}\n```"
                 else:
                     response = f"❌ Error getting events: {output}"
-            
+
+            # ── Self-healing: restart pod ──────────────────────────────────
+            elif any(word in query_lower for word in ['restart']):
+                pod_match = re.search(r'restart\s+(?:pod\s+)?(\S+)', query_lower)
+                deploy_match = re.search(r'restart\s+(?:deployment\s+)?(\S+)', query_lower)
+                if pod_match:
+                    pod_name = pod_match.group(1)
+                    kubectl_args = ["delete", "pod", pod_name, "--grace-period=0"]
+                    if namespace:
+                        kubectl_args.extend(["-n", namespace])
+                    else:
+                        kubectl_args.extend(["-n", "default"])
+                    success, output = await self._run_kubectl_command(kubectl_args)
+                    response = (
+                        f"♻️ Restarted pod `{pod_name}`: {output}"
+                        if success
+                        else f"❌ Error restarting pod: {output}"
+                    )
+                elif deploy_match:
+                    deploy_name = deploy_match.group(1)
+                    kubectl_args = [
+                        "rollout", "restart", f"deployment/{deploy_name}",
+                    ]
+                    if namespace:
+                        kubectl_args.extend(["-n", namespace])
+                    success, output = await self._run_kubectl_command(kubectl_args)
+                    response = (
+                        f"♻️ Rolling restart of deployment `{deploy_name}`: {output}"
+                        if success
+                        else f"❌ Error restarting deployment: {output}"
+                    )
+                else:
+                    response = "❌ Please specify what to restart. Example: 'restart pod nginx-abc123' or 'restart deployment my-app'"
+
+            # ── Self-healing: rollback deployment ─────────────────────────
+            elif 'rollback' in query_lower:
+                deploy_match = re.search(r'rollback\s+(?:deployment\s+)?(\S+)', query_lower)
+                revision_match = re.search(r'to\s+revision\s+(\d+)', query_lower)
+                if deploy_match:
+                    deploy_name = deploy_match.group(1)
+                    kubectl_args = ["rollout", "undo", f"deployment/{deploy_name}"]
+                    if revision_match:
+                        kubectl_args.extend([f"--to-revision={revision_match.group(1)}"])
+                    if namespace:
+                        kubectl_args.extend(["-n", namespace])
+                    success, output = await self._run_kubectl_command(kubectl_args)
+                    response = (
+                        f"⏪ Rolled back deployment `{deploy_name}`: {output}"
+                        if success
+                        else f"❌ Error rolling back: {output}"
+                    )
+                else:
+                    response = "❌ Please specify deployment to roll back. Example: 'rollback deployment my-app'"
+
+            # ── Self-healing: cordon / uncordon / drain node ───────────────
+            elif any(word in query_lower for word in ['cordon', 'uncordon', 'drain']):
+                node_match = re.search(r'(?:cordon|uncordon|drain)\s+(?:node\s+)?(\S+)', query_lower)
+                if node_match:
+                    node_name = node_match.group(1)
+                    if 'uncordon' in query_lower:
+                        kubectl_args = ["uncordon", node_name]
+                        action = "Uncordoned"
+                    elif 'drain' in query_lower:
+                        kubectl_args = ["drain", node_name, "--ignore-daemonsets", "--delete-emissary-data", "--timeout=120s"]
+                        action = "Drained"
+                    else:
+                        kubectl_args = ["cordon", node_name]
+                        action = "Cordoned"
+                    success, output = await self._run_kubectl_command(kubectl_args)
+                    response = (
+                        f"🔒 {action} node `{node_name}`: {output}"
+                        if success
+                        else f"❌ Error: {output}"
+                    )
+                else:
+                    response = "❌ Please specify a node name. Example: 'drain node worker-1'"
+
+            # ── Self-healing: show CrashLoop pods ─────────────────────────
+            elif any(word in query_lower for word in ['crashloop', 'crashlooping', 'crashing', 'oom']):
+                bad_statuses = ['CrashLoopBackOff', 'Error', 'OOMKilled', 'ImagePullBackOff']
+                kubectl_args = ["get", "pods", "--all-namespaces", "-o", "wide"]
+                success, output = await self._run_kubectl_command(kubectl_args)
+                if success:
+                    lines = output.split('\n')
+                    header = lines[0] if lines else ""
+                    problem_lines = [header] + [
+                        l for l in lines[1:] if any(s in l for s in bad_statuses)
+                    ]
+                    if len(problem_lines) > 1:
+                        response = f"🚨 **Problematic Pods:**\n\n```\n{chr(10).join(problem_lines)}\n```"
+                    else:
+                        response = "✅ No CrashLoop / OOMKilled pods found."
+                else:
+                    response = f"❌ Error: {output}"
+
             # Default: show help
             else:
                 response = """🔧 **Kubernetes Integration**
@@ -563,21 +678,23 @@ I couldn't understand your query. Try using `/k8s` commands:
 • `/k8s logs <pod-name> [namespace]` - Get logs
 • `/k8s scale <deployment> <replicas> [namespace]` - Scale deployment
 
+**Self-Healing (Natural Language):**
+• "restart pod nginx-abc123"
+• "rollback deployment my-api"
+• "cordon node worker-2"
+• "drain node worker-2"
+• "show crashlooping pods"
+
+**AIOps Commands:**
+• `/incident list` — open incidents
+• `/alert list` — recent alerts
+• `/approval list` — pending approvals
+
 **Natural Language Examples:**
 • "show me pods in production namespace"
-• "show me error pods in pos-order4u"
 • "list failed pods"
-• "show unhealthy pods in staging"
-• "list all deployments"
 • "get logs from pod nginx-abc123"
 • "scale api-server deployment to 3 replicas"
-• "what are my nodes"
-
-**Status Filters:**
-• error/failed/crash - Show pods with issues
-• unhealthy/not ready - Show pods not ready
-• pending - Show pending pods
-• running/healthy - Show healthy running pods
 
 Try `/k8s help` for all commands!
 """
@@ -837,6 +954,15 @@ Tokens: {stats['total_tokens']}"""
                 except Exception as e:
                     logger.error("k8s_command_failed", error=str(e), error_type=type(e).__name__)
                     response = f"Error processing Kubernetes command: {str(e)}"
+
+            elif command == "/approval":
+                response = await self._handle_approval_command(command_parts[1:], message)
+
+            elif command == "/incident":
+                response = await self._handle_incident_command(command_parts[1:])
+
+            elif command == "/alert":
+                response = await self._handle_alert_command(command_parts[1:])
 
             else:
                 response = "Unknown command. Try /help"
@@ -1099,6 +1225,177 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
         except Exception as e:
             logger.error("k8s_command_error", error=str(e), subcommand=subcommand)
             return f"❌ Error executing Kubernetes command: {str(e)}\n\nPlease check your cluster configuration and try again."
+
+    # ──────────────────────────────────────────────────────────────────────
+    # AIOps command handlers
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _handle_approval_command(self, args: list[str], message: ChannelMessage) -> str:
+        """Handle /approval list|approve <id>|reject <id>."""
+        if not self.approval_manager:
+            return "⚠️ Approval manager is not initialised."
+
+        sub = args[0].lower() if args else "list"
+
+        if sub == "list":
+            try:
+                pending = await self.approval_manager.list_pending()
+                if not pending:
+                    return "✅ No pending approvals."
+                lines = ["📋 **Pending Approvals:**\n"]
+                for ap in pending:
+                    risk_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(
+                        ap.risk_level.value.upper() if hasattr(ap, 'risk_level') else "MEDIUM", "⚠️"
+                    )
+                    short_id = ap.approval_id[:8]
+                    lines.append(
+                        f"{risk_icon} `{short_id}` — **{ap.description}**\n"
+                        f"   Requested by: {ap.requested_by} | "
+                        f"Requested: {ap.requested_at.strftime('%H:%M UTC')}"
+                    )
+                return "\n".join(lines)
+            except Exception as e:
+                return f"❌ Error listing approvals: {e}"
+
+        elif sub in ("approve", "reject") and len(args) >= 2:
+            short_id = args[1]
+            action_text = f"{sub} {short_id}"
+            try:
+                result = await self.approval_manager.process_response(
+                    action_text, message.user_id, message.user_id
+                )
+                if result is not None:
+                    return result
+                return f"⚠️ No pending approval found with ID `{short_id}`."
+            except Exception as e:
+                return f"❌ Error processing approval: {e}"
+        else:
+            return (
+                "🔧 **Approval Commands:**\n"
+                "• `/approval list` — list pending approvals\n"
+                "• `/approval approve <id>` — approve a pending action\n"
+                "• `/approval reject <id>` — reject a pending action\n\n"
+                "You can also reply with `approve <id>` or `reject <id>` directly."
+            )
+
+    async def _handle_incident_command(self, args: list[str]) -> str:
+        """Handle /incident list|show <id>|close <id>."""
+        sub = args[0].lower() if args else "list"
+
+        try:
+            from sqlalchemy import text as sql_text
+            from src.database.postgres import engine
+
+            async with engine.connect() as conn:
+                if sub == "list":
+                    rows = await conn.execute(
+                        sql_text(
+                            "SELECT id, title, severity, status, event_type, namespace, created_at "
+                            "FROM incidents WHERE status = 'open' ORDER BY created_at DESC LIMIT 20"
+                        )
+                    )
+                    incidents = rows.fetchall()
+                    if not incidents:
+                        return "✅ No open incidents."
+                    lines = ["🚨 **Open Incidents:**\n"]
+                    sev_icon = {"P1": "🔴", "P2": "🟠", "P3": "🟡", "P4": "🔵"}
+                    for inc in incidents:
+                        icon = sev_icon.get(inc.severity, "⚪")
+                        short_id = str(inc.id)[:8]
+                        lines.append(
+                            f"{icon} `{short_id}` [{inc.severity}] **{inc.title}**\n"
+                            f"   Type: {inc.event_type} | NS: {inc.namespace or 'n/a'} | "
+                            f"Since: {inc.created_at.strftime('%Y-%m-%d %H:%M') if inc.created_at else 'unknown'}"
+                        )
+                    return "\n".join(lines)
+
+                elif sub == "show" and len(args) >= 2:
+                    short_id = args[1]
+                    row = await conn.execute(
+                        sql_text(
+                            "SELECT id, title, severity, status, event_type, namespace, "
+                            "resource_kind, resource_name, root_cause, rca_confidence, created_at, resolved_at "
+                            "FROM incidents WHERE id::text LIKE :pattern ORDER BY created_at DESC LIMIT 1"
+                        ),
+                        {"pattern": f"{short_id}%"},
+                    )
+                    inc = row.fetchone()
+                    if not inc:
+                        return f"❌ No incident found matching `{short_id}`."
+                    confidence_str = f" ({inc.rca_confidence:.0%})" if inc.rca_confidence else ""
+                    return (
+                        f"📋 **Incident `{str(inc.id)[:8]}`**\n\n"
+                        f"**Title:** {inc.title}\n"
+                        f"**Severity:** {inc.severity} | **Status:** {inc.status}\n"
+                        f"**Type:** {inc.event_type}\n"
+                        f"**Resource:** {inc.resource_kind}/{inc.resource_name} in `{inc.namespace or 'n/a'}`\n"
+                        f"**Root Cause:** {inc.root_cause or 'Not yet determined'}{confidence_str}\n"
+                        f"**Opened:** {inc.created_at}\n"
+                        f"**Resolved:** {inc.resolved_at or 'Still open'}"
+                    )
+
+                elif sub == "close" and len(args) >= 2:
+                    short_id = args[1]
+                    from datetime import datetime, timezone
+                    result = await conn.execute(
+                        sql_text(
+                            "UPDATE incidents SET status='resolved', resolved_at=:ts "
+                            "WHERE id::text LIKE :pattern AND status='open'"
+                        ),
+                        {"pattern": f"{short_id}%", "ts": datetime.now(timezone.utc)},
+                    )
+                    await conn.commit()
+                    if result.rowcount:
+                        return f"✅ Incident `{short_id}` marked as resolved."
+                    return f"⚠️ No open incident found matching `{short_id}`."
+
+                else:
+                    return (
+                        "🚨 **Incident Commands:**\n"
+                        "• `/incident list` — show open incidents\n"
+                        "• `/incident show <id>` — show incident details\n"
+                        "• `/incident close <id>` — resolve an incident"
+                    )
+
+        except Exception as e:
+            logger.error("incident_command_error", error=str(e))
+            return f"❌ Error: {e}"
+
+    async def _handle_alert_command(self, args: list[str]) -> str:
+        """Handle /alert list."""
+        sub = args[0].lower() if args else "list"
+
+        try:
+            from sqlalchemy import text as sql_text
+            from src.database.postgres import engine
+
+            async with engine.connect() as conn:
+                if sub == "list":
+                    rows = await conn.execute(
+                        sql_text(
+                            "SELECT rule_name, severity, status, source, fired_at "
+                            "FROM alert_events ORDER BY fired_at DESC LIMIT 20"
+                        )
+                    )
+                    alerts = rows.fetchall()
+                    if not alerts:
+                        return "✅ No recent alert events."
+                    lines = ["📣 **Recent Alerts (last 20):**\n"]
+                    sev_icon = {"critical": "🔴", "warning": "🟡", "info": "🔵"}
+                    for a in alerts:
+                        icon = sev_icon.get(a.severity, "⚪")
+                        status_icon = "🔥" if a.status == "firing" else "✅"
+                        lines.append(
+                            f"{icon}{status_icon} **{a.rule_name}** [{a.severity}] "
+                            f"via {a.source} — {a.fired_at.strftime('%m-%d %H:%M') if a.fired_at else 'n/a'}"
+                        )
+                    return "\n".join(lines)
+                else:
+                    return "📣 **Alert Commands:**\n• `/alert list` — show recent alerts"
+
+        except Exception as e:
+            logger.error("alert_command_error", error=str(e))
+            return f"❌ Error: {e}"
 
     async def _process_message(self, message: ChannelMessage) -> None:
         """Process regular message and generate AI response."""

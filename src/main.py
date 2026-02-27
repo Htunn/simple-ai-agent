@@ -24,12 +24,14 @@ settings = get_settings()
 router = None
 handler = None
 mcp_manager = None
+watchloop = None
+approval_manager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global router, handler, mcp_manager
+    global router, handler, mcp_manager, watchloop, approval_manager
 
     logger.info("starting_application", environment=settings.environment)
 
@@ -81,6 +83,87 @@ async def lifespan(app: FastAPI):
     # Set router for webhook endpoints
     set_message_router(router)
 
+    # ──────────────────────────────────────────────────────────────
+    # AIOps: initialise approval manager (requires Redis + MCPManager)
+    # ──────────────────────────────────────────────────────────────
+    try:
+        from src.database.redis import get_redis
+        from src.services.approval_manager import ApprovalManager
+        approval_manager = ApprovalManager(redis_client=get_redis(), mcp_manager=mcp_manager)
+        # Expose on handler so NLP layer can forward approval responses
+        handler.approval_manager = approval_manager
+        logger.info("approval_manager_initialized")
+    except Exception as e:
+        logger.warning("approval_manager_init_failed", error=str(e))
+        approval_manager = None
+
+    # ──────────────────────────────────────────────────────────────
+    # AIOps: K8s watch-loop (proactive cluster health polling)
+    # ──────────────────────────────────────────────────────────────
+    if settings.k8s_watchloop_enabled:
+        try:
+            from src.aiops.rule_engine import RuleEngine, DEFAULT_RULES
+            from src.monitoring.watchloop import K8sWatchLoop
+
+            rule_engine = RuleEngine(DEFAULT_RULES)
+
+            async def _on_cluster_event(event) -> None:
+                """Route watch-loop events → rule engine → approval / auto-remediation."""
+                try:
+                    matches = rule_engine.evaluate(event.__dict__)
+                    if not matches:
+                        return
+
+                    # Notify AIOps channel about detected issue
+                    if settings.aiops_notification_channel:
+                        parts = settings.aiops_notification_channel.split(":", 1)
+                        if len(parts) == 2:
+                            ch_type, ch_id = parts
+                            icon = {"critical": "🚨", "high": "🔴", "medium": "🟡", "low": "🔵"}.get(event.severity, "⚠️")
+                            alert_msg = (
+                                f"{icon} **AIOps Alert** [{event.severity.upper()}]\n"
+                                f"Type: `{event.event_type}`\n"
+                                f"Resource: `{event.resource_kind}/{event.resource_name}`"
+                                + (f" in `{event.namespace}`" if event.namespace else "")
+                                + f"\n{event.message}"
+                            )
+                            if matches:
+                                playbook_names = [r.playbook_id for _, r in matches]
+                                alert_msg += f"\n\n🔧 Suggested remediation: `{', '.join(playbook_names)}`"
+                                if approval_manager:
+                                    alert_msg += "\nUse `/incident` or ask me to run the playbook."
+                            await router.send_message(ch_type, ch_id, alert_msg)
+
+                    # If auto-remediation is enabled (LOW-risk steps only), queue playbooks
+                    if settings.auto_remediation_enabled and approval_manager:
+                        from src.aiops.playbooks import PlaybookRegistry, RiskLevel
+                        registry = PlaybookRegistry()
+                        for rule, playbook_id in matches:
+                            playbook = registry.get(playbook_id)
+                            if playbook:
+                                for step in playbook.steps:
+                                    if step.risk_level == RiskLevel.LOW:
+                                        logger.info(
+                                            "auto_remediating_low_risk_step",
+                                            playbook=playbook_id,
+                                            step=step.name,
+                                        )
+                except Exception as exc:
+                    logger.error("watchloop_event_handler_error", error=str(exc))
+
+            watchloop = K8sWatchLoop(
+                interval_seconds=settings.k8s_watchloop_interval,
+                event_callback=_on_cluster_event,
+            )
+            asyncio.create_task(watchloop.start())
+            logger.info(
+                "k8s_watchloop_started",
+                interval=settings.k8s_watchloop_interval,
+            )
+        except Exception as e:
+            logger.warning("k8s_watchloop_init_failed", error=str(e))
+            watchloop = None
+
     # Start all channel adapters
     logger.info("starting_channel_adapters")
     asyncio.create_task(router.start_all())
@@ -91,6 +174,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("shutting_down_application")
+
+    # Stop K8s watch-loop
+    if watchloop:
+        await watchloop.stop()
+        logger.info("k8s_watchloop_stopped")
 
     # Stop channel adapters
     await router.stop_all()
@@ -123,6 +211,16 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Include routers
 app.include_router(health_router, tags=["Health"])
 app.include_router(webhook_router, prefix="/api", tags=["Webhooks"])
+
+
+def get_watchloop():
+    """Return current watchloop instance (for health checks)."""
+    return watchloop
+
+
+def get_approval_manager():
+    """Return current approval manager instance."""
+    return approval_manager
 
 
 @app.get("/")

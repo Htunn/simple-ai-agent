@@ -27,3 +27,10 @@ slowapi==0.1.9
 
 # Security
 cryptography==42.0.0
+
+# AIOps - Kubernetes async client
+kubernetes-asyncio==29.0.0
+
+# AIOps - Metrics & Monitoring
+aiohttp==3.9.3
+APScheduler==3.10.4

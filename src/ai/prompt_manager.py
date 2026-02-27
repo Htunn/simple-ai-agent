@@ -55,13 +55,24 @@ class PromptManager:
 /status - Show current model and conversation stats
 
 **Kubernetes Commands:**
-/k8s help - Show Kubernetes commands
+/k8s help - Show full Kubernetes command list
 /k8s pods [namespace] - List pods
 /k8s nodes - List nodes
 /k8s deployments [namespace] - List deployments
-/k8s services [namespace] - List services
 /k8s logs <pod> [namespace] - Get pod logs
 /k8s scale <deployment> <replicas> [namespace] - Scale deployment
 
-Type `/k8s help` for full Kubernetes command list.
-"""
+**AIOps Commands:**
+/incident list - Show open incidents
+/incident show <id> - Show incident details
+/incident close <id> - Resolve an incident
+/alert list - Show recent alert events
+/approval list - Show pending approvals
+/approval approve <id> - Approve a pending action
+/approval reject <id> - Reject a pending action
+
+**Self-Healing (Natural Language):**
+• "restart pod <name>" or "restart deployment <name>"
+• "rollback deployment <name>"
+• "cordon / uncordon / drain node <name>"
+• "show crashlooping pods"
