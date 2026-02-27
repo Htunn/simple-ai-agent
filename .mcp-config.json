@@ -1,0 +1,53 @@
+{
+  "mcpServers": {
+    "kubernetes": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "scripts/mcp_server.py"
+      ],
+      "description": "Kubernetes management tools via kubectl",
+      "tools": [
+        "k8s_get_pods",
+        "k8s_get_nodes",
+        "k8s_get_deployments",
+        "k8s_get_services",
+        "k8s_get_namespaces",
+        "k8s_get_logs",
+        "k8s_scale_deployment",
+        "k8s_describe_resource",
+        "k8s_get_events",
+        "k8s_top_pods",
+        "k8s_top_nodes",
+        "k8s_get_contexts",
+        "k8s_current_context"
+      ]
+    },
+    "simplePortChecker": {
+      "type": "sse",
+      "url": "https://mcp.simpleportchecker.com/mcp",
+      "description": "Port checking and network connectivity tools"
+    }
+  },
+  "env": {
+    "KUBECONFIG": "~/.kube/config"
+  },
+  "notes": [
+    "This configuration file defines MCP servers that can be used by the AI agent.",
+    "Supported transport types:",
+    "  - stdio: subprocess-based servers (e.g., Kubernetes)",
+    "  - sse: HTTP-based servers with Server-Sent Events (e.g., simplePortChecker)",
+    "The manager automatically routes tool calls to the appropriate server.",
+    "Make sure kubectl is installed and configured before using Kubernetes tools.",
+    "",
+    "To add an SSE-based MCP server:",
+    "{",
+    "  \"serverName\": {",
+    "    \"type\": \"sse\",",
+    "    \"url\": \"https://your-mcp-server.com/mcp\",",
+    "    \"apiKey\": \"optional-api-key\",",
+    "    \"description\": \"Server description\"",
+    "  }",
+    "}"
+  ]
+}

@@ -34,7 +34,7 @@ class MessageRepository:
             content=content,
             model_used=model_used,
             token_count=token_count,
-            metadata=metadata or {},
+            extra_data=metadata or {},
         )
         self.session.add(message)
         await self.session.flush()

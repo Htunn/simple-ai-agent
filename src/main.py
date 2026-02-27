@@ -13,6 +13,7 @@ from src.api import health_router, limiter, set_message_router, webhook_router
 from src.channels import create_router
 from src.config import get_settings
 from src.database import close_db, close_redis, init_db, init_redis
+from src.mcp.mcp_manager import MCPManager
 from src.services import MessageHandler
 from src.utils import configure_logging
 
@@ -22,12 +23,13 @@ settings = get_settings()
 # Global instances
 router = None
 handler = None
+mcp_manager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global router, handler
+    global router, handler, mcp_manager
 
     logger.info("starting_application", environment=settings.environment)
 
@@ -50,9 +52,28 @@ async def lifespan(app: FastAPI):
     logger.info("initializing_ai_client")
     ai_client = GitHubModelsClient()
 
+    # Initialize MCP manager (manages multiple MCP servers with different transports)
+    logger.info("initializing_mcp_manager")
+    mcp_manager = MCPManager()
+    
+    # Start all configured MCP servers
+    try:
+        if await mcp_manager.start():
+            server_info = mcp_manager.get_server_info()
+            logger.info("mcp_servers_started", 
+                       servers=server_info['connected_servers'],
+                       total_tools=server_info['total_tools'])
+        else:
+            logger.warning("mcp_manager_initialization_failed")
+            mcp_manager = None
+    except Exception as e:
+        logger.warning("mcp_initialization_error", error=str(e))
+        # Continue without MCP if it fails
+        mcp_manager = None
+
     # Create message handler
     logger.info("creating_message_handler")
-    handler = MessageHandler(router, ai_client)
+    handler = MessageHandler(router, ai_client, mcp_manager)
 
     # Set handler for router
     router.set_message_handler(handler.handle_message)
@@ -73,6 +94,10 @@ async def lifespan(app: FastAPI):
 
     # Stop channel adapters
     await router.stop_all()
+
+    # Close MCP manager and all servers
+    if mcp_manager:
+        await mcp_manager.stop()
 
     # Close database connections
     await close_db()

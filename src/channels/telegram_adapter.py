@@ -29,14 +29,12 @@ class TelegramAdapter(ChannelAdapter):
 
         self.application = Application.builder().token(self.token).build()
 
-        # Add message handler
+        # Add handlers - handle ALL text messages in groups and private chats
+        # In groups, bot needs privacy mode disabled OR will only see mentions/replies
+        # filters.TEXT catches both commands (/k8s) and regular text messages
         self.application.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
+            MessageHandler(filters.TEXT, self._handle_message)
         )
-
-        # Add command handlers
-        self.application.add_handler(CommandHandler("start", self._handle_start))
-        self.application.add_handler(CommandHandler("help", self._handle_help))
 
         logger.info("telegram_application_initialized")
 
@@ -64,9 +62,32 @@ class TelegramAdapter(ChannelAdapter):
             return None
 
         message = event.message
+        content = message.text or ""
+        
+        # In groups, remove bot mentions from the message (e.g., @botname)
+        # This allows natural language queries and commands to work properly
+        if message.chat.type in ['group', 'supergroup']:
+            # Get bot username from the application
+            if self.application and self.application.bot:
+                bot_username = self.application.bot.username
+                if bot_username:
+                    # Remove @botname mentions (handles @botname at start or in middle)
+                    content = content.replace(f'@{bot_username}', '').strip()
+                    # Also remove bot's first name if mentioned
+                    bot_first_name = self.application.bot.first_name
+                    if bot_first_name:
+                        content = content.replace(f'@{bot_first_name}', '').strip()
+            
+            logger.debug(
+                "telegram_group_message",
+                chat_id=message.chat_id,
+                chat_type=message.chat.type,
+                original_content=message.text,
+                cleaned_content=content,
+            )
 
         return ChannelMessage(
-            content=message.text or "",
+            content=content,
             user_id=str(message.chat_id),
             username=message.from_user.username if message.from_user else None,
             channel_type=self.channel_type,

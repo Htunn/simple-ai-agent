@@ -54,7 +54,7 @@ class ConversationRepository:
             user_id=user_id,
             channel_type=channel_type,
             model_override=model_override,
-            metadata=metadata or {},
+            extra_data=metadata or {},
         )
         self.session.add(conversation)
         await self.session.flush()

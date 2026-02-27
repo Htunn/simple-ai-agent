@@ -1,12 +1,13 @@
 """Message router for channel adapters."""
 
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 import structlog
 
 from src.channels.base import ChannelAdapter, ChannelMessage
 from src.channels.discord_adapter import DiscordAdapter
+from src.channels.slack_adapter import SlackAdapter
 from src.channels.telegram_adapter import TelegramAdapter
 
 logger = structlog.get_logger()
@@ -26,7 +27,7 @@ class MessageRouter:
         adapter.set_message_handler(self._route_message)
         logger.info("adapter_registered", channel_type=adapter.channel_type)
 
-    def set_message_handler(self, handler: any) -> None:
+    def set_message_handler(self, handler: Any) -> None:
         """Set the global message handler."""
         self.message_handler = handler
         logger.info("message_handler_set")
@@ -91,5 +92,12 @@ def create_router() -> MessageRouter:
         router.register_adapter(telegram_adapter)
     except Exception as e:
         logger.warning("telegram_adapter_not_registered", error=str(e))
+
+    # Register Slack adapter if token available
+    try:
+        slack_adapter = SlackAdapter()
+        router.register_adapter(slack_adapter)
+    except Exception as e:
+        logger.warning("slack_adapter_not_registered", error=str(e))
 
     return router

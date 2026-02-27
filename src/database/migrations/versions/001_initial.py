@@ -57,7 +57,7 @@ def upgrade() -> None:
             index=True,
         ),
         sa.Column("is_active", sa.Boolean, default=True, nullable=False),
-        sa.Column("metadata", postgresql.JSON, server_default="{}", nullable=False),
+        sa.Column("extra_data", postgresql.JSON, server_default="{}", nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
     )
 
@@ -79,7 +79,7 @@ def upgrade() -> None:
             index=True,
         ),
         sa.Column("token_count", sa.Integer, nullable=True),
-        sa.Column("metadata", postgresql.JSON, server_default="{}", nullable=False),
+        sa.Column("extra_data", postgresql.JSON, server_default="{}", nullable=False),
         sa.ForeignKeyConstraint(
             ["conversation_id"], ["conversations.id"], ondelete="CASCADE"
         ),

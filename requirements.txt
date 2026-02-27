@@ -7,7 +7,8 @@ pydantic-settings==2.1.0
 # Channel Integrations
 discord.py==2.3.2
 python-telegram-bot[all]==20.7
-httpx==0.26.0
+slack-sdk==3.27.1
+httpx==0.25.2
 
 # Database
 sqlalchemy[asyncio]==2.0.25

@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     # Telegram Bot
     telegram_token: str | None = Field(None, description="Telegram bot token")
 
+    # Slack Bot
+    slack_bot_token: str | None = Field(None, description="Slack bot token")
+    slack_signing_secret: str | None = Field(None, description="Slack signing secret for webhook verification")
+
+    # MCP Server Configuration
+    mcp_server_url: str | None = Field(
+        default=None,
+        description="MCP (Model Context Protocol) server URL for custom business logic",
+    )
+
     # Database Configuration
     database_url: str = Field(
         default="postgresql+asyncpg://clawbot:clawbot_password@localhost:5432/clawbot",

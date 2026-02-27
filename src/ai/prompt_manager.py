@@ -47,7 +47,21 @@ class PromptManager:
     def get_command_help(cls) -> str:
         """Get help text for available commands."""
         return """Available commands:
+
+**General Commands:**
+/help - Show this help message
 /model <name> - Set AI model (gpt-4, claude-3-opus, llama-3-70b)
 /reset - Start a new conversation
 /status - Show current model and conversation stats
-/help - Show this help message"""
+
+**Kubernetes Commands:**
+/k8s help - Show Kubernetes commands
+/k8s pods [namespace] - List pods
+/k8s nodes - List nodes
+/k8s deployments [namespace] - List deployments
+/k8s services [namespace] - List services
+/k8s logs <pod> [namespace] - Get pod logs
+/k8s scale <deployment> <replicas> [namespace] - Scale deployment
+
+Type `/k8s help` for full Kubernetes command list.
+"""

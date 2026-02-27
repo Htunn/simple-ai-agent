@@ -15,14 +15,16 @@ settings = get_settings()
 class GitHubModelsClient:
     """Client for GitHub Models API using OpenAI SDK."""
 
-    # Supported models on GitHub Models
+    # Supported models on GitHub Models (Azure AI Inference)
     SUPPORTED_MODELS = {
-        "gpt-4": "gpt-4",
-        "gpt-4-turbo": "gpt-4-turbo",
+        "gpt-4": "gpt-4o",
+        "gpt-4-turbo": "gpt-4o",
+        "gpt-4o": "gpt-4o",
+        "gpt-4o-mini": "gpt-4o-mini",
         "claude-3-opus": "claude-3-opus-20240229",
         "claude-3-sonnet": "claude-3-sonnet-20240229",
-        "llama-3-70b": "llama-3-70b-instruct",
-        "llama-3-8b": "llama-3-8b-instruct",
+        "llama-3-70b": "meta-llama-3-70b-instruct",
+        "llama-3-8b": "meta-llama-3-8b-instruct",
     }
 
     def __init__(self, api_key: Optional[str] = None):
@@ -30,7 +32,7 @@ class GitHubModelsClient:
         self.api_key = api_key or settings.github_token
         self.client = AsyncOpenAI(
             api_key=self.api_key,
-            base_url="https://models.github.com/v1",
+            base_url="https://models.inference.ai.azure.com",
         )
         logger.info("github_models_client_initialized")
 

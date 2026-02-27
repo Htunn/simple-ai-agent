@@ -5,84 +5,329 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-2024-01-01}
+        VCS_REF: ${VCS_REF:-dev}
+        VERSION: ${VERSION:-1.0.0}
+    image: simple-ai-agent:${VERSION:-latest}
+    container_name: simple-ai-agent
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://clawbot:clawbot_password@postgres:5432/clawbot
-      - REDIS_URL=redis://redis:6379/0
+      # Database configuration
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://aiagent:aiagent_password@postgres:5432/aiagent}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      
+      # Bot tokens (should be in .env file)
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
+      
+      # Application settings
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - ENVIRONMENT=production
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-gpt-4}
+      
+      # MCP configuration
+      - MCP_CONFIG_PATH=/app/.mcp-config.json
+      
+      # Kubernetes configuration (if using K8s MCP)
+      - KUBECONFIG=${KUBECONFIG:-/app/.kube/config}
+      
+      # Performance tuning
+      - WORKERS=${WORKERS:-1}
+      - MAX_CONNECTIONS=${MAX_CONNECTIONS:-100}
+      
+      # Security
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+    
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    
     volumes:
+      # Persistent logs
       - ./logs:/app/logs
+      # Kubernetes config (if needed for K8s MCP)
+      - ${HOME}/.kube:/app/.kube:ro
+      # Optional: MCP config overrides
+      - ./.mcp-config.json:/app/.mcp-config.json:ro
+    
     restart: unless-stopped
+    
     networks:
-      - clawbot-network
+      - aiagent-network
+    
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 40s
+    
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '${APP_CPU_LIMIT:-2.0}'
+          memory: ${APP_MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: '${APP_CPU_RESERVATION:-0.5}'
+          memory: ${APP_MEMORY_RESERVATION:-512M}
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Read-only root filesystem (except specific mounts)
+    # Uncomment for enhanced security after testing
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+    #   - /app/logs
 
   postgres:
     image: postgres:16-alpine
+    container_name: simple-ai-agent-postgres
     environment:
-      - POSTGRES_USER=clawbot
-      - POSTGRES_PASSWORD=clawbot_password
-      - POSTGRES_DB=clawbot
+      - POSTGRES_USER=${POSTGRES_USER:-aiagent}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aiagent_password}
+      - POSTGRES_DB=${POSTGRES_DB:-aiagent}
+      # Performance tuning
+      - POSTGRES_MAX_CONNECTIONS=${POSTGRES_MAX_CONNECTIONS:-200}
+      - POSTGRES_SHARED_BUFFERS=${POSTGRES_SHARED_BUFFERS:-256MB}
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+    
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
+    
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # Optional: Custom postgresql.conf
+      # - ./config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    
+    # PostgreSQL configuration for performance
+    command: >
+      postgres
+      -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      -c effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_worker_processes=4
+      -c max_parallel_workers_per_gather=2
+      -c max_parallel_workers=4
+      -c max_parallel_maintenance_workers=2
+    
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clawbot"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aiagent}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    
+    restart: unless-stopped
+    
     networks:
-      - clawbot-network
+      - aiagent-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '${POSTGRES_CPU_LIMIT:-1.0}'
+          memory: ${POSTGRES_MEMORY_LIMIT:-1G}
+        reservations:
+          cpus: '${POSTGRES_CPU_RESERVATION:-0.25}'
+          memory: ${POSTGRES_MEMORY_RESERVATION:-256M}
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security
+    security_opt:
+      - no-new-privileges:true
 
   redis:
     image: redis:7-alpine
+    container_name: simple-ai-agent-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+      # Optional: Custom redis.conf
+      # - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    
+    # Redis configuration for persistence and performance
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory ${REDIS_MAXMEMORY:-512mb}
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-backlog 511
+      --timeout 0
+      --tcp-keepalive 300
+      --loglevel notice
+    
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
+    
+    restart: unless-stopped
+    
     networks:
-      - clawbot-network
+      - aiagent-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '${REDIS_CPU_LIMIT:-0.5}'
+          memory: ${REDIS_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: '${REDIS_CPU_RESERVATION:-0.1}'
+          memory: ${REDIS_MEMORY_RESERVATION:-128M}
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security
+    security_opt:
+      - no-new-privileges:true
 
-  # Optional: Redis Commander for debugging
+  # Optional: Redis Commander for debugging and monitoring
   redis-commander:
     image: rediscommander/redis-commander:latest
+    container_name: simple-ai-agent-redis-commander
     environment:
       - REDIS_HOSTS=local:redis:6379
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
+    
     ports:
-      - "8081:8081"
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    
     depends_on:
       - redis
+    
     networks:
-      - clawbot-network
+      - aiagent-network
+    
     profiles:
       - debug
+    
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Optional: PostgreSQL Admin (pgAdmin) for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: simple-ai-agent-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    
+    ports:
+      - "${PGADMIN_PORT:-8082}:80"
+    
+    depends_on:
+      - postgres
+    
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    
+    networks:
+      - aiagent-network
+    
+    profiles:
+      - debug
+    
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 volumes:
   postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/postgres
+  
   redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/redis
+  
+  pgadmin-data:
+    driver: local
 
 networks:
-  clawbot-network:
+  aiagent-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-172.25.0.0/16}
+
