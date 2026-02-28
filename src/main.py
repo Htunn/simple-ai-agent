@@ -26,12 +26,13 @@ handler = None
 mcp_manager = None
 watchloop = None
 approval_manager = None
+playbook_executor = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global router, handler, mcp_manager, watchloop, approval_manager
+    global router, handler, mcp_manager, watchloop, approval_manager, playbook_executor
 
     logger.info("starting_application", environment=settings.environment)
 
@@ -102,15 +103,24 @@ async def lifespan(app: FastAPI):
     # ──────────────────────────────────────────────────────────────
     if settings.k8s_watchloop_enabled:
         try:
-            from src.aiops.rule_engine import RuleEngine, DEFAULT_RULES
+            from src.aiops.playbooks import PlaybookExecutor, PlaybookRegistry
+            from src.aiops.rule_engine import RuleEngine
             from src.monitoring.watchloop import K8sWatchLoop
 
-            rule_engine = RuleEngine(DEFAULT_RULES)
+            rule_engine = RuleEngine()
+            # Hoist registry + executor once at startup — not per-event
+            _pb_registry = PlaybookRegistry()
+            playbook_executor = PlaybookExecutor(
+                registry=_pb_registry,
+                mcp_manager=mcp_manager,
+                approval_manager=approval_manager,
+                notify_callback=router.send_message if router else None,
+            )
 
             async def _on_cluster_event(event) -> None:
                 """Route watch-loop events → rule engine → approval / auto-remediation."""
                 try:
-                    matches = rule_engine.evaluate(event.__dict__)
+                    matches = rule_engine.evaluate(event.to_dict())
                     if not matches:
                         return
 
@@ -120,6 +130,7 @@ async def lifespan(app: FastAPI):
                         if len(parts) == 2:
                             ch_type, ch_id = parts
                             icon = {"critical": "🚨", "high": "🔴", "medium": "🟡", "low": "🔵"}.get(event.severity, "⚠️")
+                            playbook_names = [r for _, r in matches]
                             alert_msg = (
                                 f"{icon} **AIOps Alert** [{event.severity.upper()}]\n"
                                 f"Type: `{event.event_type}`\n"
@@ -128,32 +139,43 @@ async def lifespan(app: FastAPI):
                                 + f"\n{event.message}"
                             )
                             if matches:
-                                playbook_names = [r.playbook_id for _, r in matches]
-                                alert_msg += f"\n\n🔧 Suggested remediation: `{', '.join(playbook_names)}`"
+                                alert_msg += f"\n\n🔧 Playbooks queued: `{', '.join(playbook_names)}`"
                                 if approval_manager:
-                                    alert_msg += "\nUse `/incident` or ask me to run the playbook."
+                                    alert_msg += "\nHigh-risk steps will require your approval."
                             await router.send_message(ch_type, ch_id, alert_msg)
 
-                    # If auto-remediation is enabled (LOW-risk steps only), queue playbooks
-                    if settings.auto_remediation_enabled and approval_manager:
-                        from src.aiops.playbooks import PlaybookRegistry, RiskLevel
-                        registry = PlaybookRegistry()
-                        for rule, playbook_id in matches:
-                            playbook = registry.get(playbook_id)
-                            if playbook:
-                                for step in playbook.steps:
-                                    if step.risk_level == RiskLevel.LOW:
-                                        logger.info(
-                                            "auto_remediating_low_risk_step",
-                                            playbook=playbook_id,
-                                            step=step.name,
-                                        )
+                    # Execute playbooks via PlaybookExecutor
+                    if settings.auto_remediation_enabled and playbook_executor:
+                        ch_type, ch_id = "", ""
+                        if settings.aiops_notification_channel:
+                            parts = settings.aiops_notification_channel.split(":", 1)
+                            if len(parts) == 2:
+                                ch_type, ch_id = parts
+
+                        for _, playbook_id in matches:
+                            try:
+                                run = await playbook_executor.execute(
+                                    playbook_id=playbook_id,
+                                    incident_context=event.to_dict(),
+                                    channel_type=ch_type,
+                                    channel_target=ch_id,
+                                    requested_by="watchloop",
+                                )
+                                logger.info(
+                                    "playbook_run_finished",
+                                    playbook=playbook_id,
+                                    status=run.status,
+                                    steps_done=len(run.step_outputs),
+                                )
+                            except Exception as pb_exc:
+                                logger.error("playbook_execution_error",
+                                             playbook=playbook_id, error=str(pb_exc))
                 except Exception as exc:
                     logger.error("watchloop_event_handler_error", error=str(exc))
 
             watchloop = K8sWatchLoop(
-                interval_seconds=settings.k8s_watchloop_interval,
                 event_callback=_on_cluster_event,
+                interval=settings.k8s_watchloop_interval,
             )
             asyncio.create_task(watchloop.start())
             logger.info(

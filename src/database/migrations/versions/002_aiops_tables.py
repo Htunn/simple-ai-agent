@@ -1,7 +1,7 @@
 """AIOps tables: incidents, alert_events, remediation_actions, k8s_state_snapshots, audit_log
 
 Revision ID: 002_aiops_tables
-Revises: 001_initial
+Revises: 001
 Create Date: 2026-02-27
 """
 from alembic import op
@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 # revision identifiers
 revision = "002_aiops_tables"
-down_revision = "001_initial"
+down_revision = "001"
 branch_labels = None
 depends_on = None
 

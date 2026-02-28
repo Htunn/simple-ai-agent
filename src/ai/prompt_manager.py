@@ -76,3 +76,4 @@ class PromptManager:
 • "rollback deployment <name>"
 • "cordon / uncordon / drain node <name>"
 • "show crashlooping pods"
+"""

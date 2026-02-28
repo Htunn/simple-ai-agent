@@ -8,11 +8,14 @@ and publishes events to alerts queue for downstream processing.
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
+from typing import TYPE_CHECKING, Any, Callable, Coroutine
 
 import structlog
 
 from src.config import get_settings
+
+if TYPE_CHECKING:
+    from src.k8s.client import KubernetesClient
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -70,7 +73,7 @@ class K8sWatchLoop:
         self._running = False
         self._task: asyncio.Task | None = None
         self._known_issues: dict[str, datetime] = {}  # resource_key -> first_seen, to avoid duplicate alerts
-        self._k8s = None
+        self._k8s: "KubernetesClient | None" = None
 
     async def start(self) -> None:
         """Start the watchloop background task."""
@@ -118,6 +121,8 @@ class K8sWatchLoop:
 
     async def _tick(self) -> None:
         """Single poll iteration across all namespaces."""
+        if self._k8s is None:
+            return
         events: list[ClusterEvent] = []
 
         # 1. Scan for crashloop and OOMKilled pods
@@ -147,6 +152,14 @@ class K8sWatchLoop:
         # 2. Scan for NotReady nodes
         try:
             not_ready = await self._k8s.get_not_ready_nodes()
+            not_ready_keys = {f"node/{node['name']}" for node in not_ready}
+
+            # Clean up recovered nodes
+            for key in list(self._known_issues):
+                if key.startswith("node/") and key not in not_ready_keys:
+                    self._known_issues.pop(key, None)
+                    logger.info("watchloop_node_recovered", node=key.split("/", 1)[-1])
+
             for node in not_ready:
                 key = f"node/{node['name']}"
                 if key not in self._known_issues:
@@ -165,15 +178,18 @@ class K8sWatchLoop:
 
         # 3. Scan for deployments with 0 available replicas (desired > 0)
         try:
-            namespaces_resp = await self._k8s._core_v1.list_namespace()
+            namespaces_resp = await self._k8s._core_v1.list_namespace()  # type: ignore[union-attr]
+            current_failed_deployments: set[str] = set()
+
             for ns in namespaces_resp.items:
                 ns_name = ns.metadata.name
                 if ns_name in ("kube-system", "kube-public", "kube-node-lease"):
                     continue
                 deployments = await self._k8s.list_deployments(namespace=ns_name)
                 for dep in deployments:
+                    key = f"deployment/{ns_name}/{dep['name']}"
                     if dep.get("replicas", 0) > 0 and dep.get("available_replicas", 0) == 0:
-                        key = f"deployment/{ns_name}/{dep['name']}"
+                        current_failed_deployments.add(key)
                         if key not in self._known_issues:
                             self._known_issues[key] = datetime.now(timezone.utc)
                             events.append(ClusterEvent(
@@ -185,6 +201,14 @@ class K8sWatchLoop:
                                 message=f"Deployment {dep['name']} in {ns_name} has 0/{dep['replicas']} replicas available",
                                 labels=dep.get("labels", {}),
                             ))
+
+            # Clean up recovered deployments
+            for key in list(self._known_issues):
+                if key.startswith("deployment/") and key not in current_failed_deployments:
+                    self._known_issues.pop(key, None)
+                    _, ns_name, dep_name = key.split("/", 2)
+                    logger.info("watchloop_deployment_recovered", deployment=dep_name, namespace=ns_name)
+
         except Exception as e:
             logger.debug("watchloop_deployment_check_error", error=str(e))
 

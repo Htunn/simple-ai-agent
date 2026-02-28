@@ -37,12 +37,15 @@ class KubernetesClient:
         self._custom_objects = None
         self._config = None
         self._initialized = False
+        self._init_attempted = False
 
     @classmethod
     async def get_instance(cls) -> "KubernetesClient":
         """Get or create the singleton client instance."""
         async with cls._lock:
-            if cls._instance is None or not cls._instance._initialized:
+            if cls._instance is None or (
+                not cls._instance._initialized and not cls._instance._init_attempted
+            ):
                 instance = cls()
                 await instance._initialize()
                 cls._instance = instance
@@ -50,6 +53,7 @@ class KubernetesClient:
 
     async def _initialize(self) -> None:
         """Initialize the Kubernetes API clients."""
+        self._init_attempted = True
         try:
             from kubernetes_asyncio import client as k8s_client
             from kubernetes_asyncio import config as k8s_config
@@ -60,9 +64,46 @@ class KubernetesClient:
                 logger.info("k8s_client_initialized", mode="in-cluster")
             else:
                 # Fall back to kubeconfig file
-                kubeconfig = os.environ.get("KUBECONFIG", os.path.expanduser("~/.kube/config"))
-                await k8s_config.load_kube_config(config_file=kubeconfig)
-                logger.info("k8s_client_initialized", mode="kubeconfig", path=kubeconfig)
+                # KUBECONFIG may be a colon-separated list of paths (kubectl behaviour)
+                raw_kubeconfig = os.environ.get("KUBECONFIG", "")
+                k8s_context = os.environ.get("K8S_CONTEXT") or None
+
+                candidates: list[str] = [
+                    p.strip()
+                    for p in raw_kubeconfig.split(":")
+                    if p.strip()
+                ] if raw_kubeconfig else []
+                candidates.append(os.path.expanduser("~/.kube/config"))  # final fallback
+
+                loaded = False
+                for kubeconfig_path in candidates:
+                    if not os.path.isfile(kubeconfig_path):
+                        logger.debug("k8s_kubeconfig_not_found", path=kubeconfig_path)
+                        continue
+                    try:
+                        load_kwargs: dict[str, Any] = {"config_file": kubeconfig_path}
+                        if k8s_context:
+                            load_kwargs["context"] = k8s_context
+                        await k8s_config.load_kube_config(**load_kwargs)
+                        logger.info(
+                            "k8s_client_initialized",
+                            mode="kubeconfig",
+                            path=kubeconfig_path,
+                            context=k8s_context or "(current-context)",
+                        )
+                        loaded = True
+                        break
+                    except Exception as load_err:
+                        logger.debug(
+                            "k8s_kubeconfig_load_failed",
+                            path=kubeconfig_path,
+                            error=str(load_err),
+                        )
+
+                if not loaded:
+                    raise RuntimeError(
+                        f"No usable kubeconfig found. Tried: {candidates}"
+                    )
 
             self._core_v1 = k8s_client.CoreV1Api()
             self._apps_v1 = k8s_client.AppsV1Api()
@@ -73,7 +114,7 @@ class KubernetesClient:
         except Exception as e:
             logger.warning("k8s_client_init_failed", error=str(e))
             self._initialized = False
-            raise
+            # Do not re-raise — callers check is_available; K8s features are optional
 
     @staticmethod
     def _is_in_cluster() -> bool:
