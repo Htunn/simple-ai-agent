@@ -373,8 +373,61 @@ class MessageHandler:
         
         # Detect intent and execute appropriate command
         try:
+            # ── Word-number normalisation ("one replica" → "1 replica") ─────────
+            _WORD_NUMS = {
+                'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+                'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
+                'ten': '10',
+            }
+            normalized = query_lower
+            for _w, _d in _WORD_NUMS.items():
+                normalized = re.sub(rf'\b{_w}\b', _d, normalized)
+
+            # ── Scale / resize — checked FIRST, before pod/deployment branches ───
+            # Handles: "scale down superadmin-frontend pod to one replica"
+            #          "scale my-app to 2 replicas"  "resize web to 0 replicas" etc.
+            if any(kw in normalized for kw in ('scale', 'resize')) and re.search(r'\d+\s+replica', normalized):
+                num_match = re.search(r'(\d+)\s+replica', normalized)
+                # Extract deployment name: first hyphenated token after scale/resize verb
+                name_match = re.search(
+                    r'(?:scale\s+(?:down\s+|up\s+)?|resize\s+)([a-z0-9][a-z0-9\-\.]+)',
+                    normalized,
+                )
+                if not name_match:
+                    # fallback: hyphenated word before pod/deployment/to N replica
+                    name_match = re.search(
+                        r'([a-z0-9][a-z0-9\-\.]{3,})(?:\s+(?:pod|deployment|app|service))?\s+(?:to\s+)?\d+\s+replica',
+                        normalized,
+                    )
+                if name_match and num_match:
+                    deployment = name_match.group(1).rstrip('-.')
+                    replicas = num_match.group(1)
+                    kubectl_args = ["scale", "deployment", deployment, f"--replicas={replicas}"]
+                    kubectl_args.extend(["-n", namespace] if namespace else ["-n", "default"])
+                    success, output = await self._run_kubectl_command(kubectl_args)
+                    if not success and not namespace:
+                        # retry without a namespace so kubectl searches the current context default
+                        success, output = await self._run_kubectl_command(
+                            ["scale", "deployment", deployment, f"--replicas={replicas}"]
+                        )
+                    if success:
+                        response = f"⚖️ Scaled `{deployment}` → `{replicas}` replica(s)\n```\n{output}\n```"
+                    else:
+                        response = (
+                            f"❌ Could not scale `{deployment}` to `{replicas}` replica(s):\n```\n{output}\n```\n\n"
+                            "Use `/k8s deployments` to verify the deployment name and namespace."
+                        )
+                else:
+                    response = (
+                        "❌ Could not parse deployment name or replica count.\n\n"
+                        "**Examples:**\n"
+                        "• _scale superadmin-frontend to 1 replica_\n"
+                        "• _scale down my-app pod to 2 replicas_\n"
+                        "• `/k8s scale <name> <count> [namespace]`"
+                    )
+
             # List pods
-            if any(word in query_lower for word in ['pod', 'pods', 'container', 'containers']):
+            elif any(word in query_lower for word in ['pod', 'pods', 'container', 'containers']):
                 if 'log' in query_lower:
                     # Extract pod name
                     pod_match = re.search(r'(?:pod|container)\s+(\S+)', query_lower)
@@ -483,8 +536,45 @@ class MessageHandler:
                             else:
                                 response = f"✅ **No pods{filter_description} found{f' in namespace {namespace}' if namespace else ' (all namespaces)'}**\n\nAll pods appear to be running normally! 🎉"
                         else:
-                            formatted_output = self._format_kubectl_table(output, "pods")
-                            response = f"📦 **Pods{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n{formatted_output}"
+                            # No explicit filter requested — show only problem pods to keep
+                            # Slack replies concise.  Show "all healthy" summary if none.
+                            lines = output.split('\n')
+                            header = lines[0] if lines else ""
+                            _bad = [
+                                'Error', 'CrashLoopBackOff', 'ImagePullBackOff',
+                                'Pending', 'Failed', 'Unknown', 'Terminating',
+                                'ContainerCreating', 'OOMKilled',
+                            ]
+                            problem_lines: list[str] = []
+                            healthy_count = 0
+                            for _line in lines[1:]:
+                                if not _line.strip():
+                                    continue
+                                if any(s in _line for s in _bad):
+                                    problem_lines.append(_line)
+                                elif 'Running' in _line:
+                                    _parts = _line.split()
+                                    _degraded = False
+                                    for _p in _parts:
+                                        if '/' in _p:
+                                            _r, _t = _p.split('/', 1)
+                                            if _r != _t:
+                                                _degraded = True
+                                            break
+                                    if _degraded:
+                                        problem_lines.append(_line)
+                                    else:
+                                        healthy_count += 1
+                            ns_label = f" in namespace `{namespace}`" if namespace else " (all namespaces)"
+                            if problem_lines:
+                                _filt = '\n'.join([header] + problem_lines)
+                                formatted_output = self._format_kubectl_table(_filt, "pods")
+                                response = (
+                                    f"⚠️ **Problem pods{ns_label}** "
+                                    f"({len(problem_lines)} issue(s), {healthy_count} healthy):\n\n{formatted_output}"
+                                )
+                            else:
+                                response = f"✅ All {healthy_count} pod(s){ns_label} are healthy."
                     else:
                         response = f"❌ Error getting pods: {output}"
             
