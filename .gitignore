@@ -78,3 +78,5 @@ Thumbs.db
 *.pid
 *.seed
 *.pid.lock
+# ── Workspace-specific / private configs (do not publish) ──────────────────────
+slack_manifest.*.yml
