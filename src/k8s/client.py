@@ -125,6 +125,20 @@ class KubernetesClient:
     def is_available(self) -> bool:
         return self._initialized
 
+    # ── Namespace Operations ──────────────────────────────────────────────────
+
+    async def list_namespaces(self) -> list[dict[str, Any]]:
+        """List all namespaces in the cluster."""
+        resp = await self._core_v1.list_namespace()
+        return [
+            {
+                "name": ns.metadata.name,
+                "status": ns.status.phase if ns.status else "Unknown",
+                "labels": ns.metadata.labels or {},
+            }
+            for ns in resp.items
+        ]
+
     # ── Pod Operations ─────────────────────────────────────────────────────────
 
     async def list_pods(self, namespace: str = "default", label_selector: str | None = None) -> list[dict[str, Any]]:

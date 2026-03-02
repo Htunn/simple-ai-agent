@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -16,6 +18,7 @@ from src.database import close_db, close_redis, init_db, init_redis
 from src.mcp.mcp_manager import MCPManager
 from src.services import MessageHandler
 from src.utils import configure_logging
+import src.monitoring.metrics as _metrics  # noqa: F401 — registers Prometheus metrics on import
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -243,6 +246,12 @@ def get_watchloop():
 def get_approval_manager():
     """Return current approval manager instance."""
     return approval_manager
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/")
