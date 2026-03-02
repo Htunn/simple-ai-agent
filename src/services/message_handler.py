@@ -298,6 +298,12 @@ class MessageHandler:
             content_length=len(message.content),
         )
 
+        # ── Normalise command prefix: '!' is the Slack-friendly alternative to '/'
+        # Slack intercepts messages starting with '/' and shows "not a valid command".
+        # Users can type '!k8s pods', '!help', etc. from Slack.
+        if message.content.startswith("!"):
+            message.content = "/" + message.content[1:]
+
         # ── AIOps: check if this is an approval response first ────
         if self.approval_manager and not message.content.startswith("/"):
             try:
@@ -402,20 +408,29 @@ class MessageHandler:
                 if name_match and num_match:
                     deployment = name_match.group(1).rstrip('-.')
                     replicas = num_match.group(1)
+
+                    # Auto-discover namespace when not specified:
+                    # run 'kubectl get deployment -A' and find the line matching the name.
+                    resolved_ns = namespace
+                    if not resolved_ns:
+                        ok, all_deps = await self._run_kubectl_command(["get", "deployment", "--all-namespaces"])
+                        if ok:
+                            for _line in all_deps.splitlines()[1:]:
+                                _parts = _line.split()
+                                if len(_parts) >= 2 and _parts[1] == deployment:
+                                    resolved_ns = _parts[0]
+                                    break
+
                     kubectl_args = ["scale", "deployment", deployment, f"--replicas={replicas}"]
-                    kubectl_args.extend(["-n", namespace] if namespace else ["-n", "default"])
+                    kubectl_args.extend(["-n", resolved_ns] if resolved_ns else [])
                     success, output = await self._run_kubectl_command(kubectl_args)
-                    if not success and not namespace:
-                        # retry without a namespace so kubectl searches the current context default
-                        success, output = await self._run_kubectl_command(
-                            ["scale", "deployment", deployment, f"--replicas={replicas}"]
-                        )
                     if success:
-                        response = f"⚖️ Scaled `{deployment}` → `{replicas}` replica(s)\n```\n{output}\n```"
+                        ns_label = f" in namespace `{resolved_ns}`" if resolved_ns else ""
+                        response = f"⚖️ Scaled `{deployment}`{ns_label} → `{replicas}` replica(s)\n```\n{output}\n```"
                     else:
                         response = (
                             f"❌ Could not scale `{deployment}` to `{replicas}` replica(s):\n```\n{output}\n```\n\n"
-                            "Use `/k8s deployments` to verify the deployment name and namespace."
+                            "Use `!k8s deployments` to verify the deployment name and namespace."
                         )
                 else:
                     response = (
@@ -756,42 +771,28 @@ class MessageHandler:
 
             # Default: show help
             else:
-                response = """🔧 **Kubernetes Integration**
-
-I couldn't understand your query. Try using `/k8s` commands:
-
-• `/k8s pods [namespace]` - List pods
-• `/k8s nodes` - List nodes
-• `/k8s deployments [namespace]` - List deployments
-• `/k8s services [namespace]` - List services
-• `/k8s namespaces` - List namespaces
-• `/k8s logs <pod-name> [namespace]` - Get logs
-• `/k8s scale <deployment> <replicas> [namespace]` - Scale deployment
-
-**Self-Healing (Natural Language):**
-• "restart pod nginx-abc123"
-• "rollback deployment my-api"
-• "cordon node worker-2"
-• "drain node worker-2"
-• "show crashlooping pods"
-
-**AIOps Commands:**
-• `/incident list` — open incidents
-• `/alert list` — recent alerts
-• `/approval list` — pending approvals
-
-**Natural Language Examples:**
-• "show me pods in production namespace"
-• "list failed pods"
-• "get logs from pod nginx-abc123"
-• "scale api-server deployment to 3 replicas"
-
-Try `/k8s help` for all commands!
-"""
+                response = (
+                    "🔧 **Kubernetes Integration**\n\n"
+                    "I couldn't understand your query.\n\n"
+                    "*Natural language examples:*\n"
+                    "• _show pods in pos-order4u namespace_\n"
+                    "• _scale down superadmin-frontend to 1 replica_\n"
+                    "• _restart pod nginx-abc123_\n"
+                    "• _show error pods_\n\n"
+                    "*Explicit commands (Slack — use `!` instead of `/`):*\n"
+                    "• `!k8s pods [namespace]`\n"
+                    "• `!k8s deployments [namespace]`\n"
+                    "• `!k8s scale <name> <replicas> [namespace]`\n"
+                    "• `!k8s logs <pod> [namespace]`\n"
+                    "• `!k8s nodes`\n\n"
+                    "*AIOps:*\n"
+                    "• `!incident list` — open incidents\n"
+                    "• `!alert list` — recent alerts"
+                )
         
         except Exception as e:
             logger.error("k8s_query_error", error=str(e), query=message.content)
-            response = f"❌ Error processing Kubernetes query: {str(e)}\n\nTry using `/k8s` commands instead. Type `/k8s help` for options."
+            response = f"❌ Error: {str(e)}\n\nTry `!k8s help` for all commands."
         
         # Send response
         await self.router.send_message(
@@ -988,7 +989,10 @@ I have {len(security_tools)} security tools from SimplePortChecker:
     async def _handle_command(self, message: ChannelMessage) -> None:
         """Handle command messages."""
         command_parts = message.content.split()
+        # Normalise: /k8s and !k8s are equivalent; accept bare 'k8s' too
         command = command_parts[0].lower()
+        if not command.startswith("/"):
+            command = "/" + command.lstrip("!")
         
         logger.info("command_received", command=command, parts=command_parts)
 
@@ -1055,7 +1059,11 @@ Tokens: {stats['total_tokens']}"""
                 response = await self._handle_alert_command(command_parts[1:])
 
             else:
-                response = "Unknown command. Try /help"
+                response = (
+                    "Unknown command. Try `!help`\n\n"
+                    "*Tip for Slack users:* prefix commands with `!` instead of `/`\n"
+                    "e.g. `!k8s pods`, `!k8s scale <name> <n>`, `!status`"
+                )
 
             # Send response
             await self.router.send_message(
