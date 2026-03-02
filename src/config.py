@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     database_url: str = Field(
-        default="postgresql+asyncpg://clawbot:clawbot_password@localhost:5432/clawbot",
+        default="postgresql+asyncpg://aiagent:aiagent_password@localhost:5432/aiagent",
         description="PostgreSQL database URL",
     )
 

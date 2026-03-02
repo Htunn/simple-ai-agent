@@ -1,0 +1,80 @@
+# Docker build context ignore file
+# Excludes files that should not be sent to the Docker daemon
+
+# Version control
+.git/
+.gitignore
+
+# Python virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Test artifacts
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+*.coveragerc
+
+# Development environment files
+.env
+.env.local
+.env.*.local
+.env.production
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.orig
+
+# Documentation (not needed in image)
+docs/
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# Data directories (mounted as volumes in production)
+data/
+
+# Local dev scripts (not needed in container — the scripts/ dir IS needed)
+# scripts/ contains mcp_server.py which is required
+
+# Node modules (in case frontend assets are ever added)
+node_modules/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Type stubs
+*.pyi
+
+# mypy, ruff caches
+.mypy_cache/
+.ruff_cache/
+
+# Docker files (not needed inside the build)
+Dockerfile
+docker-compose*.yml
+.dockerignore

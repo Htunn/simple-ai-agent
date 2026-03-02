@@ -1,9 +1,11 @@
-# Environment
+# ── Secrets / Environment ────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
+.env.production
+# Keep .env.example and .env.production.example (safe templates)
 
-# Python
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,33 +18,63 @@ env/
 dist/
 build/
 *.egg
+.eggs/
+pip-wheel-metadata/
 
-# IDE
+# ── Type checking & linting caches ───────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ── IDE / Editor ─────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
+*.orig
 .DS_Store
+Thumbs.db
 
-# Logs
+# ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
 logs/
 
-# Database
+# ── Database ─────────────────────────────────────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
 
-# Docker
-*.dockerignore
-
-# Testing
+# ── Testing ──────────────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
+coverage.xml
+*.coveragerc
 
-# OS
+# ── Kubernetes ──────────────────────────────────────────────────────────────
+# Never commit kubeconfig (contains cluster credentials)
+kubeconfig
+*.kubeconfig
+data/kube/
+
+# ── Runtime data (mounted as Docker volumes) ─────────────────────────────────
+data/postgres/
+data/redis/
+data/prometheus/
+data/grafana/
+data/alertmanager/
+
+# ── Jupyter ──────────────────────────────────────────────────────────────────
+*.ipynb
+.ipynb_checkpoints/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-data/
+
+# ── Build metadata ───────────────────────────────────────────────────────────
+*.pid
+*.seed
+*.pid.lock

@@ -220,7 +220,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI application
 app = FastAPI(
-    title="Clawbot AI Agent",
+    title="Simple AI Agent",
     description="Multi-channel AI agent with GitHub Models integration",
     version="0.1.0",
     lifespan=lifespan,
@@ -249,7 +249,7 @@ def get_approval_manager():
 async def root():
     """Root endpoint."""
     return {
-        "name": "Clawbot AI Agent",
+        "name": "Simple AI Agent",
         "version": "0.1.0",
         "status": "running",
         "environment": settings.environment,

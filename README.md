@@ -1,148 +1,384 @@
-# � Simple AI Agent
+# Simple AI Agent
 
-A production-ready multi-channel AI agent with Discord, Telegram, and Slack support, featuring GitHub Models API integration (GPT-4, Claude Opus, Llama 3) and extensible MCP (Model Context Protocol) for custom business logic.
+> A production-ready, multi-channel AI agent with AIOps, Kubernetes management, security scanning, and human-in-the-loop remediation — built on FastAPI, GitHub Models, and the Model Context Protocol (MCP).
 
-## Features
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](Dockerfile)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psycopg/black)
 
-### Channel & AI Capabilities
-- 🤖 **Multi-Channel Support**: Discord, Telegram, and Slack bots
-- 🧠 **Multiple AI Models**: GPT-4, Claude 3 Opus, Llama 3 via GitHub Models
-- 🎯 **Model Preferences**: Per-user and per-channel model selection
+---
 
-### Kubernetes Management
-- ☸️ **Kubernetes Integration**: Full cluster management with natural language queries and status filtering
-- 🗣️ **Natural Language K8s**: "show me error pods in production" - intelligent query parsing
-- 🔍 **Smart Filtering**: Automatic status filtering (error, running, pending, all)
+## Table of Contents
 
-### Security & Infrastructure
-- 🔐 **Security Scanning**: Port scanning, certificate analysis, WAF detection, mTLS checks
-- 🛡️ **Natural Language Security**: "check certificate for example.com", "detect waf on mysite.com"
-- 🌐 **8 Security Tools**: Full integration with SimplePortChecker MCP server
+- [Overview](#overview)
+- [Feature Matrix](#feature-matrix)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Channel Setup](#channel-setup)
+- [AIOps Engine](#aiops-engine)
+- [MCP Integration](#mcp-integration)
+- [Kubernetes Integration](#kubernetes-integration)
+- [Security Scanning](#security-scanning)
+- [Monitoring & Observability](#monitoring--observability)
+- [Configuration Reference](#configuration-reference)
+- [API Reference](#api-reference)
+- [Project Structure](#project-structure)
+- [Development](#development)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
 
-### MCP (Model Context Protocol)
-- 🔌 **Multi-Transport MCP**: stdio (Kubernetes) + SSE (cloud services)
-- 🔧 **MCP Registry**: Extensible tool registry for custom integrations
-- 🚀 **Cloud MCP Servers**: HTTP/SSE transport for remote MCP servers
+---
+
+## Overview
+
+Simple AI Agent is a conversational AI agent that connects **Discord, Telegram, and Slack** to powerful backend capabilities:
+
+| Capability | Technology |
+|---|---|
+| LLM inference | GitHub Models API (GPT-4o, Claude-3 Opus, Llama-3-70B) |
+| Chat persistence | PostgreSQL 16 (ACID, JSONB, Alembic migrations) |
+| Session caching | Redis 7 (sub-ms access, TTL expiry) |
+| Tool execution | MCP — stdio (Kubernetes) + SSE (cloud services) |
+| Cluster ops | kubectl — 13 natural-language Kubernetes tools |
+| Security scans | SimplePortChecker MCP — 8 security tools |
+| AIOps | Watch-loop → Rule engine → Playbooks → RCA |
+| Approvals | Human-in-the-loop via chat message |
+| Alerting | Prometheus + Alertmanager webhook receiver |
+| Observability | Grafana dashboards, structlog JSON, /metrics |
+
+---
+
+## Feature Matrix
+
+### Messaging Channels
+- **Discord** — Gateway WebSocket, slash commands, message-intent detection
+- **Telegram** — Webhook mode, privacy-mode support, group and private chat
+- **Slack** — Events API, app-mention, IM history, signing-secret verification
+
+### AI / LLM
+- **Multiple models** — GPT-4o, Claude-3 Opus, Llama-3-70B via GitHub Models
+- **Model selection priority** — conversation override → user pref → channel default → system default
+- **Conversation history** — stored in PostgreSQL, windowed into context
+- **Streaming-compatible** — openai-compatible SDK with GitHub Models endpoint
+
+### Kubernetes Management (13 tools)
+- **Full CRUD** — pods, deployments, services, namespaces, nodes, events
+- **Natural language** — "show me error pods in production"
+- **Status filters** — error/failed/crash, unhealthy/not-ready, pending, running
+- **Scaling** — `/k8s scale <deployment> <replicas> [ns]`
+- **Logs** — streaming and snapshot log retrieval
+- **Resource usage** — `top pods`, `top nodes`
+- **Multi-context** — switch between clusters
+
+### Security Scanning (8 tools via MCP SSE)
+- **Port scanning** — TCP/UDP port enumeration
+- **Certificate analysis** — TLS issuer, expiry, SANs, protocol
+- **WAF/CDN detection** — Cloudflare, AWS WAF, Azure Front Door, Akamai
+- **mTLS verification** — mutual TLS support check
+- **Security headers** — HSTS, CSP, X-Frame-Options
+- **OWASP scan** — common vulnerability detection
+- **Full security scan** — combined assessment report
+- **Hybrid identity** — identity provider detection
+
+### AIOps Engine
+- **K8s Watch-Loop** — background polling every 30 s (configurable)
+  - Detects: `CrashLoopBackOff`, `OOMKilled`, `NotReady` nodes, zero-replica deployments
+- **Rule Engine** — YAML-defined alert rules with severity mapping
+- **Playbook Executor** — ordered step sequences with risk-gated execution
+  - `LOW risk` — auto-execute, notify after
+  - `MEDIUM risk` — post approval request, await chat response
+  - `HIGH risk` — warn + require explicit confirmation
+- **RCA Engine** — LLM-powered root-cause analysis (SRE prompt → JSON report)
+- **Log Analyzer** — structured log pattern matching
+- **Approval Manager** — Redis-backed TTL approvals; chat-native `approve/reject`
+- **Alertmanager receiver** — `POST /api/alert/webhook` ingests Prometheus alerts
 
 ### Data & Performance
-- 💾 **Hybrid Database Architecture**: PostgreSQL for persistence, Redis for caching
-- ⚡ **Sub-millisecond Session Access**: Redis-backed session management with TTL
-- 📊 **Complete Message History**: Full conversation tracking with token usage
-- 🗄️ **ACID Guarantees**: PostgreSQL for reliable data storage
+- **PostgreSQL 16** — users, conversations, messages, channel configs, JSONB metadata
+- **Redis 7** — session cache (sub-ms), pending approvals (TTL 5 min), AOF persistence
+- **Alembic migrations** — versioned schema management
+- **Connection pooling** — async SQLAlchemy + asyncpg
 
-### Production Ready
-- 🐳 **Docker Ready**: Multi-stage builds with kubectl support
-- ⚙️ **Resource Management**: CPU/memory limits, health checks, logging rotation
-- 🔒 **Security Hardening**: Non-root containers, no-new-privileges, OCI labels
-- 📈 **Monitoring**: Health endpoints, PostgreSQL/Redis metrics, debug tools (pgAdmin, redis-commander)
-- 🛠️ **Extensible Architecture**: Easy to add new channels and integrations
+### Production Hardening
+- **Multi-stage Docker build** — kubectl bundled, OCI labels, non-root UID 1000
+- **Security options** — `no-new-privileges`, isolated network, non-root container
+- **Resource limits** — CPU and memory limits/reservations in Compose
+- **Rich health endpoint** — DB, Redis, K8s, Prometheus, watchloop, pending approvals
+- **Rate limiting** — `slowapi` per-IP rate limiter on all endpoints
+- **Structured logging** — JSON via `structlog`, Docker log rotation
 
-## Prerequisites
+---
 
-- Python 3.12+
-- Docker & Docker Compose (for containerized deployment)
-- PostgreSQL 16 (if running locally)
-- Redis 7 (if running locally)
+## Architecture
+
+### High-Level Design
+
+The full traffic-flow diagram is maintained as a D2 source file at [`docs/hld.d2`](docs/hld.d2).
+
+**Render to PNG/SVG (requires [D2](https://d2lang.com)):**
+```bash
+# Install D2: https://d2lang.com/tour/install
+d2 docs/hld.d2 docs/hld.svg
+# or PNG
+d2 docs/hld.d2 docs/hld.png --theme=0
+```
+The rendered diagram is committed at [`docs/hld.svg`](docs/hld.svg):
+
+![Simple AI Agent — High-Level Design](docs/hld.svg)
+
+> To regenerate after edits: `d2 docs/hld.d2 docs/hld.svg --theme=0`
+#### Traffic Flow Summary
+
+```
+Users
+  |
+  +-- Discord WebSocket --> Discord Adapter  -+
+  +-- Telegram Webhook  --> /api/webhook     -+
+  +-- Slack Events API  --> /api/webhook     -+
+                                              |
+                                      Channel Router
+                                              |
+                                     Message Handler
+                                  +----------+-----------+
+                                  |          |           |
+                           Session Mgr   AI Layer   K8s Handler
+                             (Redis)   (GitHub      (NL parser)
+                                        Models)          |
+                                  |          |      MCP Manager
+                                  |          |     +-----+------+
+                             PostgreSQL    LLM   stdio(K8s)  SSE(Security)
+                             (history)   tokens      |             |
+                                                  kubectl   SimplePortChecker
+                                                (subprocess)    (HTTPS)
+
+AIOps (async background):
+  Watch-Loop --> Rule Engine --> Playbook Executor --> Approval Manager
+       |                                  |                    |
+  K8s Cluster                       MCP tools             Redis TTL
+                                          |
+                                    RCA Engine --> GitHub Models (SRE prompt)
+
+Observability:
+  App /metrics --> Prometheus --> Grafana dashboards
+                        |
+                   Alertmanager --> POST /api/alert/webhook --> Rule Engine
+```
+
+### Layered Component Model
+
+```
++-----------------------------------------------------+
+|                   Channel Layer                      |  Discord / Telegram / Slack adapters
++-----------------------------------------------------+
+|                     API Layer                        |  FastAPI, rate-limiter, webhooks
++-----------------------------------------------------+
+|                 Business Logic Layer                 |  Message handler, session, K8s, approvals
++------------------------+----------------------------+
+|        AI Layer        |       AIOps Layer          |  LLM client | watch-loop, rules, playbooks, RCA
++------------------------+----------------------------+
+|                    MCP Layer                         |  MCP Manager -> stdio + SSE transports
++-----------------------------------------------------+
+|                    Data Layer                        |  PostgreSQL + Redis
++-----------------------------------------------------+
+|               Observability Layer                    |  Prometheus metrics, structlog JSON, Grafana
++-----------------------------------------------------+
+```
+
+### Documentation Index
+
+| Document | Description |
+|---|---|
+| [`docs/hld.d2`](docs/hld.d2) | Full HLD traffic-flow diagram (D2 source) |
+| [`docs/architecture.md`](docs/architecture.md) | Layered architecture, design decisions |
+| [`docs/component-diagram.md`](docs/component-diagram.md) | Mermaid component interactions |
+| [`docs/sequence-diagrams.md`](docs/sequence-diagrams.md) | Message flows, startup, MCP flows |
+| [`docs/database-architecture.md`](docs/database-architecture.md) | PostgreSQL & Redis schema + performance |
+| [`docs/kubernetes-integration.md`](docs/kubernetes-integration.md) | K8s guide — NL queries, status filters |
+| [`docs/mcp-integration.md`](docs/mcp-integration.md) | MCP multi-transport architecture |
+| [`docs/mcp-registry.md`](docs/mcp-registry.md) | Tool registry and routing |
+| [`docs/aiops.md`](docs/aiops.md) | AIOps engine — watch-loop, rules, playbooks, RCA |
+| [`docs/slack-setup.md`](docs/slack-setup.md) | Slack bot setup guide |
+
+---
 
 ## Quick Start
 
-### 1. Clone and Setup
+### Prerequisites
+
+| Requirement | Version |
+|---|---|
+| Python | 3.12+ |
+| Docker + Compose | v24+ |
+| kubectl | 1.28+ (K8s features) |
+| GitHub Account | Models API access |
+
+### 1. Clone & Install
 
 ```bash
-cd /Users/htunn/code/AI/simple-ai-agent
+git clone https://github.com/YOUR_USERNAME/simple-ai-agent.git
+cd simple-ai-agent
 
-# Create virtual environment
 python3.12 -m venv .venv
-source .venv/bin/activate  # On macOS/Linux
+source .venv/bin/activate       # macOS / Linux
+# .venv\Scripts\activate        # Windows
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment
 
 ```bash
-# Copy environment template
 cp .env.example .env
-
-# Edit .env with your credentials
-nano .env
+# Edit .env -- minimum required: GITHUB_TOKEN + at least one bot token
 ```
 
-Required environment variables:
-- `GITHUB_TOKEN`: GitHub fine-grained personal access token with Models API access
-- `DISCORD_TOKEN`: Discord bot token (optional)
-- `TELEGRAM_TOKEN`: Telegram bot token (optional)
-- `SLACK_BOT_TOKEN`: Slack bot token (optional)
-- `SLACK_SIGNING_SECRET`: Slack signing secret (optional)
-- `MCP_SERVER_URL`: MCP server URL for custom business logic (optional)
+### 3. Start Infrastructure
 
-### 3. GitHub Token Setup
+```bash
+# PostgreSQL and Redis -- schema auto-created on first boot
+docker compose up -d postgres redis
+```
 
-1. Go to https://github.com/settings/tokens
-2. Click "Generate new token" → "Fine-grained personal access token"
-3. Configure:
-   - **Repository access**: Choose repositories you need
-   - **Permissions**: Enable Models API access
-4. Copy token to `.env` as `GITHUB_TOKEN`
+### 4. Run the Agent
 
-### 4. Discord Bot Setup (Optional)
+```bash
+./scripts/start_server.sh
+# Or manually:
+python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-1. Go to https://discord.com/developers/applications
-2. Create "New Application"
-3. Go to "Bot" → Click "Add Bot"
-4. Enable "Message Content Intent" under "Privileged Gateway Intents"
-5. Copy token to `.env` as `DISCORD_TOKEN`
-6. Invite bot: `https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2048&scope=bot`
+### 5. Verify
 
-### 5. Telegram Bot Setup (Optional)
+```bash
+curl http://localhost:8000/health
+# {"status":"healthy","database":"healthy","redis":"healthy",...}
+```
 
-1. Message @BotFather on Telegram
-2. Send `/newbot` and follow instructions
-3. Copy token to `.env` as `TELEGRAM_TOKEN`
+---
 
-**For Group Usage:**
-- **Option 1 (Recommended)**: Disable Privacy Mode:
-  - Send `/mybots` to @BotFather
-  - Select your bot → Bot Settings → Group Privacy → Turn OFF
-  - This allows the bot to see all messages and commands in groups
-  - Use commands directly: `/k8s pods pos-order4u`
-  - Use natural language: "check pos-order4u namespace pods"
-  
-- **Option 2**: Mention the bot (Privacy Mode ON):
-  - Keep privacy mode ON (default)
-  - Bot only responds when mentioned or replied to
-  - For commands: `@your_bot_name /k8s pods pos-order4u`
-  - For natural language: `@your_bot_name check pos-order4u namespace pods`
-  - The bot automatically strips mentions for processing
+## Channel Setup
 
-**Note**: In private chats, the bot always receives all messages regardless of privacy mode.
+### GitHub Token (Required)
 
-### 6. Slack Bot Setup (Optional)
+1. Visit <https://github.com/settings/tokens> -> **Fine-grained personal access token**
+2. Enable **Models API** permission
+3. Set `GITHUB_TOKEN` in `.env`
 
-1. Go to https://api.slack.com/apps
-2. Create "New App" → "From scratch"
-3. Add OAuth scopes: `app_mentions:read`, `chat:write`, `im:history`, `users:read`
-4. Install app to workspace
-5. Copy "Bot User OAuth Token" to `.env` as `SLACK_BOT_TOKEN`
-6. Copy "Signing Secret" to `.env` as `SLACK_SIGNING_SECRET`
-7. Enable Event Subscriptions with webhook URL: `https://your-domain.com/api/webhook/slack`
-8. Subscribe to events: `app_mention`, `message.im`
+### Discord
 
-**See [docs/slack-setup.md](docs/slack-setup.md) for detailed instructions.**
+1. <https://discord.com/developers/applications> -> New Application -> Bot
+2. Enable **Message Content Intent** under Privileged Gateway Intents
+3. Copy token -> `DISCORD_TOKEN`
+4. Invite URL: `https://discord.com/oauth2/authorize?client_id=CLIENT_ID&permissions=2048&scope=bot`
 
-### 7. MCP Integration (Enabled by Default)
+### Telegram
 
-**NEW**: Multi-transport MCP (Model Context Protocol) integration with support for both stdio (local) and SSE (cloud) servers!
+1. Message **@BotFather** -> `/newbot`
+2. Copy token -> `TELEGRAM_TOKEN`
+3. **Groups (recommended):** Disable privacy mode via @BotFather -> Bot Settings -> Group Privacy -> OFF
 
-**What's Included:**
-- ✅ **Kubernetes MCP** - stdio transport with 13 kubectl tools
-- ✅ **SimplePortChecker MCP** - SSE transport with 8 security scanning tools
-- ✅ Automatic process management (starts/stops with app)
-- ✅ JSON-RPC 2.0 protocol support
-- ✅ Compatible with Claude Desktop, LobeHub, and other MCP clients
+### Slack
 
-**Configuration:** `.mcp-config.json` (already included)
+1. <https://api.slack.com/apps> -> New App -> From scratch
+2. OAuth scopes: `app_mentions:read`, `chat:write`, `im:history`, `users:read`
+3. Install to workspace -> copy Bot User OAuth Token -> `SLACK_BOT_TOKEN`
+4. Event Subscriptions webhook: `https://your-domain.com/api/webhook/slack`
+5. Subscribe to: `app_mention`, `message.im`
+
+See [`docs/slack-setup.md`](docs/slack-setup.md) for the full walkthrough.
+
+---
+
+## AIOps Engine
+
+The AIOps engine provides **proactive cluster health monitoring** and **automated remediation** with a human-in-the-loop approval gate.
+
+### Components
+
+| Component | Purpose |
+|---|---|
+| **K8s Watch-Loop** | Polls cluster every `K8S_WATCHLOOP_INTERVAL` seconds |
+| **Rule Engine** | Matches `ClusterEvent` objects against configured rules |
+| **Playbook Executor** | Runs ordered remediation steps |
+| **Approval Manager** | Gates `MEDIUM`/`HIGH` risk steps via chat |
+| **RCA Engine** | LLM-powered root-cause analysis with structured JSON output |
+| **Log Analyzer** | Pattern recognition on pod/container logs |
+
+### Event Types Detected
+
+| Event | Severity |
+|---|---|
+| `crash_loop` | critical |
+| `oom_killed` | critical |
+| `not_ready_node` | critical |
+| `replication_failure` | high |
+| External Alertmanager alert | varies |
+
+### Risk-Gated Approval Flow
+
+```
+Playbook step (MEDIUM / HIGH risk)
+        |
+        v
+Approval Manager --> Redis HSET  (TTL: 5 min)
+        |
+        v
+Chat: "Approval required [ID: abc123]
+       Action: restart pod nginx-abc in production
+       Risk: MEDIUM -- type 'approve abc123' or 'reject abc123'"
+        |
+   +----+----+
+approve    reject
+   |           |
+Execute     Cancel
+step        playbook
+```
+
+### RCA Report Example
+
+```
+Root Cause Analysis
+
+Pattern: OOMKill
+Root Cause: Container exceeded memory limit due to unbounded in-memory cache growth
+Confidence: 87%
+
+Supporting Evidence:
+  - OOMKilled event at 2026-03-02T14:23:11Z
+  - Memory usage reached 512Mi (limit: 512Mi)
+  - 3 restarts in last 4 hours
+
+Recommended Actions:
+  1. Set JVM/app heap limit to 60% of container memory limit
+  2. Increase memory limit to 768Mi and monitor
+  3. Add memory usage alert at 80% threshold
+```
+
+### AIOps Configuration
+
+```env
+K8S_WATCHLOOP_ENABLED=true
+K8S_WATCHLOOP_INTERVAL=30
+AUTO_REMEDIATION_ENABLED=false      # true = skip approvals for LOW-risk only
+AIOPS_NOTIFICATION_CHANNEL=telegram:YOUR_CHAT_ID
+APPROVAL_TIMEOUT_SECONDS=300
+ALERTMANAGER_WEBHOOK_SECRET=your-secret
+```
+
+---
+
+## MCP Integration
+
+Simple AI Agent uses **MCP (Model Context Protocol)** with two transport types:
+
+| Transport | Server | Use Case |
+|---|---|---|
+| `stdio` | `scripts/mcp_server.py` | Kubernetes (local subprocess, 13 tools) |
+| `SSE` | `https://mcp.simpleportchecker.com/mcp` | Security scanning (cloud, 8 tools) |
+
+### Configuration (`.mcp-config.json`)
 
 ```json
 {
@@ -162,685 +398,384 @@ Required environment variables:
 }
 ```
 
-**Available MCP Tools:**
+All tools are registered in `MCPManager.tool_registry` (`tool_name -> server_name`).
+The `MessageHandler` calls `MCPManager.call_tool(name, params)` which dispatches to the correct transport automatically.
 
-*Kubernetes (stdio):*
-- `k8s_get_pods`, `k8s_get_nodes`, `k8s_get_deployments`
-- `k8s_get_services`, `k8s_get_namespaces`, `k8s_get_logs`
-- `k8s_scale_deployment`, `k8s_describe_resource`, `k8s_get_events`
-- `k8s_top_pods`, `k8s_top_nodes`, `k8s_get_contexts`, `k8s_current_context`
+See [`docs/mcp-integration.md`](docs/mcp-integration.md) for protocol details.
 
-*Security Scanning (SSE):*
-- `scan_ports`, `analyze_certificate`, `detect_l7_protection`
-- `check_mtls`, `check_security_headers`, `scan_owasp_vulnerabilities`
-- `full_security_scan`, `check_hybrid_identity`
+---
 
-**Benefits:**
-- 🔒 **Secure**: Credentials isolated, non-root containers
-- 🚀 **Fast**: stdio for local, SSE for cloud services
-- 🔌 **Standard**: Follows official MCP specification
-- 🌐 **Cloud-Ready**: HTTP/SSE transport for remote servers
-- 🛠️ **Extensible**: Easy to add custom servers
+## Kubernetes Integration
 
-**Architecture:**
-- **stdio**: Direct subprocess communication for local tools (Kubernetes)
-- **SSE**: Server-Sent Events for cloud services (SimplePortChecker)
-- **Tool Registry**: Automatic routing to the correct transport
-- **Multi-Message Support**: SSE response parsing with request ID matching
+### Commands
 
-For detailed architecture and protocol flow, see **[Sequence Diagrams](docs/sequence-diagrams.md)** (Diagram 7-10).
+| Command | Description |
+|---|---|
+| `/k8s pods [ns]` | List pods |
+| `/k8s logs <pod> [ns]` | Get logs |
+| `/k8s scale <deploy> <n> [ns]` | Scale deployment |
+| `/k8s deployments [ns]` | List deployments |
+| `/k8s nodes` | List nodes |
+| `/k8s services [ns]` | List services |
+| `/k8s namespaces` | List namespaces |
+| `/k8s events [ns]` | Recent events |
+| `/k8s describe <type> <name> [ns]` | Describe resource |
+| `/k8s top pods\|nodes` | Resource usage |
+| `/k8s contexts` | Available contexts |
 
-### 8. Run with Docker Compose (Recommended)
+### Natural Language Examples
+
+```
+show me error pods in production
+list failed pods
+scale api-server to 3 replicas in staging
+get logs from nginx-abc123
+what are my nodes
+show pending pods in development
+```
+
+### Status Filters
+
+| Keywords | Shows |
+|---|---|
+| `error`, `failed`, `crash` | CrashLoopBackOff, Error, ImagePullBackOff |
+| `unhealthy`, `not ready` | Containers not ready |
+| `pending` | Pending, ContainerCreating |
+| `running`, `healthy` | Only healthy running pods |
+
+See [`docs/kubernetes-integration.md`](docs/kubernetes-integration.md) for the full guide.
+
+---
+
+## Security Scanning
+
+Natural language queries powered by the SimplePortChecker MCP server:
+
+```
+is port 443 open on example.com
+check certificate for github.com
+detect waf on mysite.com
+full security scan on example.com
+check mtls on api.example.com
+check security headers on example.com
+```
+
+---
+
+## Monitoring & Observability
+
+### Health Endpoint Response
+
+```json
+{
+  "status": "healthy",
+  "database": "healthy",
+  "redis": "healthy",
+  "kubernetes": "healthy (5 namespaces)",
+  "prometheus": "healthy",
+  "watchloop": "running",
+  "pending_approvals": 0,
+  "active_incidents": 0
+}
+```
+
+### Observability Stack
+
+| Component | Default Port | Purpose |
+|---|---|---|
+| Prometheus | 9090 | Metrics scraping |
+| Grafana | 3000 | Dashboards |
+| Alertmanager | 9093 | Alert routing |
+| pgAdmin | 5050 | DB admin (debug profile) |
+| redis-commander | 8081 | Redis admin (debug profile) |
 
 ```bash
-# Start all services
-docker-compose up -d
+# Start observability stack
+docker compose up -d prometheus grafana alertmanager
 
-# View logs
-docker-compose logs -f app
-
-# Check health
-curl http://localhost:8000/health
+# With debug tools
+docker compose --profile debug up -d
 ```
 
-### 9. Run Locally (Development)
+### Alertmanager Integration
 
-**Option A: Using Helper Scripts (Recommended)**
+Add to `alertmanager.yml`:
 
-```bash
-# Start PostgreSQL and Redis
-docker-compose up -d postgres redis
-
-# Update .env to use local database URLs
-# DATABASE_URL=postgresql+asyncpg://aiagent:aiagent_password@localhost:5432/aiagent
-# REDIS_URL=redis://localhost:6379/0
-
-# Start server (database is initialized automatically on startup)
-./scripts/start_server.sh
-
-# Optional: Custom host/port
-./scripts/start_server.sh 0.0.0.0 8000 --reload
-
-# Stop server
-./scripts/stop_server.sh
+```yaml
+receivers:
+  - name: simple-ai-agent
+    webhook_configs:
+      - url: http://simple-ai-agent:8000/api/alert/webhook
+        send_resolved: true
+        http_config:
+          authorization:
+            credentials: "your-alertmanager-webhook-secret"
 ```
 
-**Option B: Manual Start**
+---
 
-```bash
-# Activate virtual environment
-source .venv/bin/activate
+## Configuration Reference
 
-# Optional: Run migrations manually (not required, auto-runs on startup)
-# python scripts/init_db.py
+Copy `.env.example` to `.env`.
 
-# Start application (database initializes automatically)
-python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
-```
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GITHUB_TOKEN` | yes | -- | GitHub fine-grained PAT with Models access |
+| `DISCORD_TOKEN` | one of | -- | Discord bot token |
+| `TELEGRAM_TOKEN` | one of | -- | Telegram bot token |
+| `SLACK_BOT_TOKEN` | one of | -- | Slack bot token |
+| `SLACK_SIGNING_SECRET` | one of | -- | Slack signing secret |
+| `DATABASE_URL` | -- | postgres DSN | PostgreSQL async DSN |
+| `REDIS_URL` | -- | `redis://localhost:6379/0` | Redis DSN |
+| `LOG_LEVEL` | -- | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `ENVIRONMENT` | -- | `development` | `development` or `production` |
+| `DEFAULT_MODEL` | -- | `gpt-4` | `gpt-4`, `claude-3-opus`, `llama-3-70b` |
+| `RATE_LIMIT_PER_MINUTE` | -- | `60` | Per-IP rate limit |
+| `K8S_WATCHLOOP_ENABLED` | -- | `true` | Enable AIOps background poller |
+| `K8S_WATCHLOOP_INTERVAL` | -- | `30` | Poll interval in seconds |
+| `AUTO_REMEDIATION_ENABLED` | -- | `false` | Skip approvals for LOW-risk steps |
+| `AIOPS_NOTIFICATION_CHANNEL` | -- | -- | `telegram:CHAT_ID` or `discord:CHANNEL_ID` |
+| `APPROVAL_TIMEOUT_SECONDS` | -- | `300` | Seconds before approval auto-expires |
+| `PROMETHEUS_URL` | -- | -- | `http://prometheus:9090` |
+| `GRAFANA_URL` | -- | -- | `http://grafana:3000` |
+| `GRAFANA_API_KEY` | -- | -- | Grafana API key for annotations |
+| `ALERTMANAGER_WEBHOOK_SECRET` | -- | -- | Webhook receiver validation secret |
 
-## Usage
+---
 
-### Available Commands
+## API Reference
 
-Users can interact with the bot using these commands:
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Root -- name, version, environment |
+| `GET` | `/health` | Full health (DB, Redis, K8s, Prometheus, watchloop) |
+| `GET` | `/ready` | Readiness probe |
+| `POST` | `/api/webhook/telegram` | Telegram update webhook |
+| `POST` | `/api/webhook/slack` | Slack Events API webhook |
+| `POST` | `/api/alert/webhook` | Alertmanager webhook receiver |
+| `GET` | `/api/webhook/test` | Webhook connectivity test |
 
-- `/help` - Show available commands
-- `/model <name>` - Set AI model (gpt-4, claude-3-opus, llama-3-70b)
-- `/reset` - Start a new conversation
-- `/status` - Show current model and conversation statistics
-- `/k8s <command>` - Kubernetes cluster management (see below)
-
-### Kubernetes Commands
-
-Manage your Kubernetes clusters directly from chat with both commands and natural language:
-
-**Command Syntax:**
-- `/k8s help` - Show all Kubernetes commands
-- `/k8s pods [namespace]` - List pods
-- `/k8s logs <pod> [namespace]` - Get pod logs
-- `/k8s deployments [namespace]` - List deployments
-- `/k8s scale <deployment> <replicas> [namespace]` - Scale deployment
-- `/k8s nodes` - List cluster nodes
-- `/k8s services [namespace]` - List services
-- `/k8s namespaces` - List all namespaces
-- `/k8s events [namespace]` - Show recent events
-- `/k8s contexts` - List available contexts
-- `/k8s describe <type> <name> [namespace]` - Describe resource
-- `/k8s top pods|nodes` - Show resource usage
-
-**Natural Language Queries:**
-The bot understands natural language with intelligent intent detection:
-```
-"show me pods in production namespace"
-"show me error pods in pos-order4u"
-"list failed pods"
-"show unhealthy pods in staging"
-"get logs from pod nginx-abc123"
-"scale api-server deployment to 3 replicas"
-"what are my nodes"
-"show pending pods"
-```
-
-**Status Filters:**
-- **error/failed/crash** - Show pods with issues (CrashLoopBackOff, Error, ImagePullBackOff)
-- **unhealthy/not ready** - Show pods where containers aren't ready
-- **pending** - Show pods in Pending or ContainerCreating state
-- **running/healthy** - Show only healthy running pods
-
-**Example Usage:**
-```
-User: /k8s pods production
-Bot: 📦 Pods in namespace production:
-
-     ✅ **api-server-abc123**
-        Status: Running | Ready: 2/2 | Restarts: 0 | Age: 5d
-     
-     ✅ **nginx-xyz789**
-        Status: Running | Ready: 1/1 | Restarts: 1 | Age: 12d
-
-User: show me error pods in production
-Bot: 📦 Pods with issues in namespace production:
-
-     ❌ **worker-def456**
-        Status: CrashLoopBackOff | Ready: 0/1 | Restarts: 10 | Age: 2h
-
-User: /k8s scale api-server 5 production
-Bot: ⚖️ Scaling deployment api-server to 5 replicas in namespace production:
-     deployment.apps/api-server scaled
-
-User: /k8s logs nginx-abc123 production
-Bot: 📜 Logs from pod nginx-abc123 in namespace production:
-     [Shows last 50 lines of logs]
-```
-
-**Output Formatting:**
-- ✅ Running pods with healthy status
-- ⚠️ Running pods with warnings
-- ❌ Failed/crashing pods
-- ⏳ Pending/creating pods
-- ✔️ Completed jobs
-- Compact format optimized for chat (no horizontal scrolling)
-- Status information at a glance
-
-**Requirements:**
-- `kubectl` installed and configured on the server
-- Valid kubeconfig with cluster access
-- Appropriate RBAC permissions for cluster operations
-
-For full Kubernetes integration documentation, see **[Kubernetes Integration Guide](docs/kubernetes-integration.md)**.
-
-### Security Scanning
-
-Perform comprehensive security scans on any domain or IP using natural language:
-
-**Available Security Tools:**
-- **Port Scanning** - Scan open ports on a target
-- **Certificate Analysis** - Check SSL/TLS certificates
-- **WAF Detection** - Detect Web Application Firewalls (Cloudflare, AWS WAF, etc.)
-- **mTLS Verification** - Check mutual TLS support
-- **Full Security Scan** - Comprehensive security assessment
-
-**Natural Language Queries:**
-```
-"is port 443 open on example.com"
-"check certificate for example.com"
-"detect waf on mysite.com"
-"scan ports on example.com"
-"check mtls on api.example.com"
-"full security scan on example.com"
-```
-
-**Example Usage:**
-```
-User: check certificate for github.com
-Bot: 🔐 Certificate Analysis for github.com:
-     
-     ✅ Valid Certificate
-     - Issuer: DigiCert Inc
-     - Valid Until: 2024-12-15
-     - SANs: github.com, www.github.com
-     - Protocol: TLSv1.3
-
-User: detect waf on example.com
-Bot: 🛡️ L7 Protection Detection for example.com:
-     
-     Detected: Cloudflare
-     - Type: CDN/WAF
-     - Headers: cf-ray, cf-cache-status
-     - Protection Level: Medium
-
-User: is port 443 open on example.com
-Bot: 🔍 Port Scan Results for example.com:
-     
-     ✅ Port 443: OPEN (https)
-     - Service: HTTPS
-     - Response Time: 45ms
-```
-
-**Features:**
-- 🚀 Real-time scanning via cloud MCP server
-- 🔐 SSL/TLS certificate validation and expiration checking
-- 🛡️ WAF/CDN detection (Cloudflare, AWS, Azure, etc.)
-- 📊 Comprehensive security reports
-- ⚡ Sub-second response times
-
-**Note:** Security scanning uses the SimplePortChecker MCP server via SSE transport. Some advanced tools (OWASP scanning, security headers check) may have limited availability.
-
-### Model Selection Priority
-
-The bot selects models based on this priority:
-
-1. **Conversation Override** - Set with `/model` command
-2. **User Preference** - Stored per user
-3. **Channel Default** - Configured per channel (Discord/Telegram)
-4. **System Default** - Fallback from `.env` (`DEFAULT_MODEL`)
-
-### Example Conversation
-
-```
-User: Hello!
-Bot: Hello! How can I help you today?
-
-User: /model claude-3-opus
-Bot: Model set to: claude-3-opus
-
-User: Explain quantum computing in simple terms
-Bot: [AI response using Claude 3 Opus]
-
-User: /status
-Bot: 📊 Status:
-     Model: claude-3-opus
-     Messages: 4
-     Tokens: 532
-```
-
-## Architecture
-
-### High-Level Overview
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│           Discord / Telegram / Slack                          │
-└───────────────────────────┬──────────────────────────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │  Channel       │
-                    │  Adapters      │
-                    └───────┬────────┘
-                            │
-                    ┌───────▼────────┐
-                    │  Message       │◄─────────┐
-                    │  Handler       │          │
-                    └───────┬────────┘          │
-                            │                   │
-                 ┌──────────┴──────────┐   ┌────▼────────────┐
-                 │                     │   │  Kubernetes     │
-          ┌──────▼──────┐      ┌──────▼───▼───┐ Handler    │
-          │  Session    │      │   GitHub      │            │
-          │  Manager    │      │   Models      ├────────────┤
-          │  (Redis)    │      │   Client      │    MCP     │
-          └──────┬──────┘      └──────┬────────│   Client   │
-                 │                     │        └─────┬──────┘
-                 │             ┌───────▼────────┐     │
-                 │             │  Context       │     │
-                 │             │  Builder       │     │
-                 │             └───────┬────────┘     │
-                 │                     │              │
-          ┌──────▼─────────────────────▼──────┐      │
-          │         PostgreSQL                 │      │
-          │  (Users, Conversations, Messages)  │      │
-          └────────────────────────────────────┘      │
-                                                       │
-          ┌────────────────────────────────────────┐  │
-          │    MCP Server / Kubernetes API        │◄─┘
-          │  - Custom Tools                        │
-          │  - Kubernetes Resources                │
-          │  - Helm Releases                       │
-          │  - Business APIs                       │
-          └────────────────────────────────────────┘
-```
-
-### Detailed Documentation
-
-For comprehensive architecture documentation, see:
-- **[Architecture Design](docs/architecture.md)** - Layered architecture, design decisions, scalability
-- **[Component Diagram](docs/component-diagram.md)** - System components and interactions
-- **[Sequence Diagrams](docs/sequence-diagrams.md)** - Message flow, commands, startup sequences, MCP multi-transport
-- **[Database Architecture](docs/database-architecture.md)** - PostgreSQL & Redis use cases, schema design, performance optimization
+---
 
 ## Project Structure
 
 ```
 simple-ai-agent/
-├── src/
-│   ├── ai/                      # AI integration layer
-│   │   ├── github_models.py     # GitHub Models client
-│   │   ├── model_selector.py    # Model selection logic
-│   │   ├── context_builder.py   # Conversation context
-│   │   └── prompt_manager.py    # Prompt templates
-│   ├── channels/                # Channel adapters
-│   │   ├── base.py              # Base adapter interface
-│   │   ├── discord_adapter.py   # Discord integration
-│   │   ├── telegram_adapter.py  # Telegram integration
-│   │   ├── slack_adapter.py     # Slack integration
-│   │   └── router.py            # Message routing
-│   ├── database/                # Database layer
-│   │   ├── models.py            # SQLAlchemy models
-│   │   ├── postgres.py          # PostgreSQL connection
-│   │   ├── redis.py             # Redis connection
-│   │   ├── repositories/        # Data access layer
-│   │   └── migrations/          # Alembic migrations
-│   ├── services/                # Business logic
-│   │   ├── message_handler.py   # Message processing with K8s integration
-│   │   ├── session_manager.py   # Session management
-│   │   ├── mcp_client.py        # MCP server integration
-│   │   ├── mcp_registry.py      # MCP tools registry
-│   │   └── kubernetes_handler.py # Kubernetes operations handler
-│   ├── api/                     # FastAPI endpoints
-│   │   ├── health.py            # Health checks
-│   │   ├── webhooks.py          # Webhook endpoints
-│   │   └── middleware.py        # Rate limiting
-│   ├── utils/                   # Utilities
-│   │   └── logger.py            # Logging configuration
-│   ├── config.py                # Configuration management
-│   └── main.py                  # Application entry point
-├── scripts/
-│   ├── init_db.py               # Database initialization
-│   └── start.sh                 # Startup script
-├── tests/                       # Test suite
-├── docker-compose.yml           # Docker orchestration
-├── Dockerfile                   # Container image
-├── requirements.txt             # Python dependencies
-├── alembic.ini                  # Migration configuration
-└── README.md                    # This file
++-- src/
+|   +-- main.py                   # Application entry point & lifespan
+|   +-- config.py                 # Pydantic Settings (env vars)
+|   +-- ai/
+|   |   +-- github_models.py      # GitHub Models API client
+|   |   +-- model_selector.py     # Per-user/channel model selection
+|   |   +-- context_builder.py    # Conversation window builder
+|   |   +-- prompt_manager.py     # System prompt templates
+|   +-- channels/
+|   |   +-- base.py               # BaseAdapter interface
+|   |   +-- discord_adapter.py    # Discord.py adapter
+|   |   +-- telegram_adapter.py   # python-telegram-bot adapter
+|   |   +-- slack_adapter.py      # slack_bolt adapter
+|   |   +-- router.py             # Fan-out / fan-in router
+|   +-- api/
+|   |   +-- health.py             # /health, /ready endpoints
+|   |   +-- webhooks.py           # /api/webhook/* endpoints
+|   |   +-- middleware.py         # Rate limiter setup
+|   +-- services/
+|   |   +-- message_handler.py    # Intent detection & routing
+|   |   +-- session_manager.py    # Redis TTL sessions
+|   |   +-- kubernetes_handler.py # NL K8s query handler
+|   |   +-- approval_manager.py   # Human-in-the-loop approvals
+|   |   +-- mcp_client.py         # Low-level MCP client helper
+|   |   +-- mcp_registry.py       # Tool registry helpers
+|   +-- mcp/
+|   |   +-- mcp_manager.py        # Lifecycle + routing manager
+|   |   +-- base_transport.py     # Transport ABC
+|   |   +-- stdio_transport.py    # stdio (subprocess) transport
+|   |   +-- sse_transport.py      # SSE (HTTP) transport
+|   |   +-- kubernetes_server.py  # K8s MCP server implementation
+|   +-- aiops/
+|   |   +-- rule_engine.py        # Alert rule matching
+|   |   +-- playbooks.py          # Playbook registry & executor
+|   |   +-- rca_engine.py         # LLM-powered root-cause analysis
+|   |   +-- log_analyzer.py       # Log pattern analysis
+|   +-- monitoring/
+|   |   +-- watchloop.py          # K8s background watch-loop
+|   |   +-- prometheus.py         # Prometheus metrics helpers
+|   |   +-- grafana.py            # Grafana annotation helper
+|   +-- k8s/
+|   |   +-- client.py             # Kubernetes API client wrapper
+|   +-- database/
+|       +-- models.py             # SQLAlchemy ORM models
+|       +-- postgres.py           # Async engine + session factory
+|       +-- redis.py              # Redis connection pool
+|       +-- repositories/         # Data-access layer
+|       +-- migrations/           # Alembic migration scripts
++-- scripts/
+|   +-- mcp_server.py             # stdio MCP server (K8s tools)
+|   +-- init_db.py                # Manual DB init helper
+|   +-- start_server.sh           # Dev server launcher
+|   +-- start_production.sh       # Production launcher
+|   +-- stop_server.sh            # Graceful stop
++-- config/
+|   +-- prometheus.yml            # Prometheus scrape config
+|   +-- alertmanager.yml          # Alertmanager routing config
+|   +-- alert_rules.yml           # Prometheus alert rules
+|   +-- grafana/                  # Grafana provisioning
++-- docs/
+|   +-- hld.d2                    # High-Level Design diagram (D2 source)
+|   +-- architecture.md
+|   +-- component-diagram.md
+|   +-- sequence-diagrams.md
+|   +-- database-architecture.md
+|   +-- aiops.md
+|   +-- kubernetes-integration.md
+|   +-- mcp-integration.md
+|   +-- mcp-registry.md
+|   +-- slack-setup.md
++-- tests/
+|   +-- conftest.py
++-- Dockerfile                    # Multi-stage, non-root, kubectl bundled
++-- docker-compose.yml            # Full stack: app + postgres + redis + observability
++-- .mcp-config.json              # MCP server configuration
++-- .env.example                  # Environment template (safe to commit)
++-- .env.production.example       # Production environment template
++-- alembic.ini                   # Migration config
++-- pyproject.toml                # Build + tool config
++-- requirements.txt              # Python dependencies
 ```
 
-## Database Schema
-
-### Users
-- `id`: UUID (primary key)
-- `channel_type`: Discord, Telegram, WhatsApp
-- `channel_user_id`: User ID from channel
-- `username`: Display name
-- `preferred_model`: User's preferred AI model
-- `created_at`: Timestamp
-
-### Conversations
-- `id`: UUID (primary key)
-- `user_id`: Foreign key to users
-- `channel_type`: Channel type
-- `model_override`: Override model for this conversation
-- `started_at`: Timestamp
-- `last_activity`: Timestamp
-- `is_active`: Boolean
-- `metadata`: JSONB
-
-### Messages
-- `id`: UUID (primary key)
-- `conversation_id`: Foreign key to conversations
-- `role`: user, assistant, system
-- `content`: Message text
-- `model_used`: AI model used
-- `timestamp`: Timestamp
-- `token_count`: Token usage
-- `metadata`: JSONB
-
-### Channel Configs
-- `id`: UUID (primary key)
-- `channel_type`: Channel type
-- `default_model`: Default model for channel
-- `settings`: JSONB
-
-## API Endpoints
-
-- `GET /` - Root endpoint
-- `GET /health` - Health check (database + Redis)
-- `GET /ready` - Readiness check
-- `POST /api/webhook/telegram` - Telegram webhook
-- `GET /api/webhook/test` - Test webhook server
+---
 
 ## Development
 
 ### Run Tests
 
 ```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest
-
-# With coverage
-pytest --cov=src
+pip install -r requirements.txt
+pytest                       # all tests
+pytest --cov=src             # with coverage report
+pytest -k test_aiops         # filter specific tests
 ```
 
 ### Code Quality
 
 ```bash
-# Format code
-black src/
-
-# Lint
-ruff check src/
-
-# Type checking
-mypy src/
+black src/        # format
+ruff check src/   # lint
+mypy src/         # type check
 ```
 
 ### Database Migrations
 
 ```bash
-# Create new migration
-alembic revision --autogenerate -m "Description"
-
-# Apply migrations
+alembic revision --autogenerate -m "add column foo"
 alembic upgrade head
-
-# Rollback
 alembic downgrade -1
 ```
 
-## Deployment
-
-### Production Setup
-
-The project includes production-ready configurations with resource management, security hardening, and monitoring.
-
-**Key Features:**
-- 🐳 Multi-stage Docker builds with kubectl support
-- ⚙️ Resource limits (CPU, memory) for all services
-- 🔒 Security hardening (non-root, no-new-privileges)
-- 📊 Health checks with proper timing for MCP initialization
-- 📝 Structured logging with rotation
-- 🔧 Debug tools (pgAdmin, redis-commander) on separate profile
-
-**Configuration Files:**
-1. **Dockerfile** - Optimized multi-stage build with OCI labels
-2. **docker-compose.yml** - Orchestration with PostgreSQL tuning
-3. **.env.production.example** - Comprehensive environment template
-
-### Quick Production Deploy
+### Run with Docker Compose
 
 ```bash
-# 1. Copy production environment template
-cp .env.production.example .env.production
+# Full stack
+docker compose up -d
 
-# 2. Edit with your credentials and settings
+# Including observability
+docker compose up -d prometheus grafana alertmanager
+
+# Debug tools (pgAdmin + redis-commander)
+docker compose --profile debug up -d
+
+# Follow logs
+docker compose logs -f app
+```
+
+---
+
+## Deployment
+
+### Production Checklist
+
+**Before deploy:**
+- [ ] Set `GITHUB_TOKEN` and at least one bot token
+- [ ] Set strong `POSTGRES_PASSWORD` and `REDIS_PASSWORD`
+- [ ] Mount kubeconfig at `./data/kube/config` for K8s features
+- [ ] Set `AIOPS_NOTIFICATION_CHANNEL` for alert routing
+- [ ] Set `ALERTMANAGER_WEBHOOK_SECRET`
+- [ ] Review CPU/memory limits in `docker-compose.yml`
+- [ ] Enable TLS termination (nginx/Caddy in front)
+- [ ] Configure log aggregation
+
+**After deploy:**
+- [ ] `GET /health` returns all subsystems healthy
+- [ ] Test a message in each configured channel
+- [ ] Test `/k8s pods` command
+- [ ] Verify `"watchloop": "running"` in `/health`
+- [ ] Monitor `docker compose logs -f app` for warnings
+
+### Production Deploy
+
+```bash
+# 1. Copy and configure
+cp .env.production.example .env.production
 nano .env.production
 
-# 3. Build with version metadata
+# 2. Build with version metadata
 export VERSION=$(git describe --tags --always)
 export VCS_REF=$(git rev-parse --short HEAD)
 export BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-docker-compose build --build-arg VERSION=$VERSION \
-                      --build-arg VCS_REF=$VCS_REF \
-                      --build-arg BUILD_DATE=$BUILD_DATE
+docker compose build \
+  --build-arg VERSION=$VERSION \
+  --build-arg VCS_REF=$VCS_REF \
+  --build-arg BUILD_DATE=$BUILD_DATE
 
-# 4. Start production stack
-docker-compose --env-file .env.production up -d
+# 3. Start
+docker compose --env-file .env.production up -d
 
-# 5. Verify health
+# 4. Verify
 curl http://localhost:8000/health
 ```
-
-### Docker Production
-
-```bash
-# Build production image
-docker build -t simple-ai-agent:latest .
-
-# Run with docker-compose
-docker-compose up -d
-
-# Scale (if needed)
-docker-compose up -d --scale app=3
-
-# Start with debug tools (pgAdmin, redis-commander)
-docker-compose --profile debug up -d
-```
-
-### Production Checklist
-
-**Before Deployment:**
-- [ ] Set all bot tokens (Discord, Telegram, Slack)
-- [ ] Configure database credentials
-- [ ] Set secure PostgreSQL password
-- [ ] Set Redis password
-- [ ] Configure kubeconfig mount (if using Kubernetes MCP)
-- [ ] Review resource limits in docker-compose.yml
-- [ ] Enable SSL/TLS for database connections
-- [ ] Set up backup strategy for PostgreSQL
-- [ ] Configure log aggregation
-
-**After Deployment:**
-- [ ] Verify `/health` endpoint returns healthy
-- [ ] Test bot responses in each channel
-- [ ] Test Kubernetes commands (if enabled)
-- [ ] Test security scanning commands
-- [ ] Monitor resource usage
-- [ ] Set up alerts for errors
-- [ ] Review logs for warnings
-
-### Environment Variables (Production)
-
-The `.env.production.example` file provides a comprehensive template with 11 sections:
-
-1. **Bot Tokens** - Discord, Telegram, Slack credentials
-2. **Database** - PostgreSQL connection and performance tuning
-3. **Redis** - Cache configuration and persistence
-4. **Application** - Log level, workers, timeouts
-5. **AI Models** - GitHub Models API configuration
-6. **Performance** - Rate limiting, connection pooling
-7. **Resource Limits** - CPU, memory for containers
-8. **Debug Tools** - pgAdmin, redis-commander (optional)
-9. **Build Metadata** - Version, VCS ref, build date
-10. **Network** - Subnet configuration
-11. **Data Persistence** - Volume driver options
-
-**Security Best Practices:**
-- Use secrets management (AWS Secrets Manager, HashiCorp Vault)
-- Never commit `.env` or `.env.production` to git
-- Rotate tokens regularly
-- Use different tokens per environment
-- Enable SSL/TLS for all external connections
-- Use read-only kubeconfig for Kubernetes MCP
 
 ### Resource Requirements
 
-**Minimum (Development):**
-- CPU: 1 core
-- Memory: 2GB (app: 1GB, postgres: 512MB, redis: 256MB)
-- Disk: 10GB
-
-**Recommended (Production):**
-- CPU: 4 cores (app: 2, postgres: 1, redis: 0.5)
-- Memory: 4GB (app: 2GB, postgres: 1GB, redis: 512MB)
-- Disk: 50GB with SSD for database
-
-**Scaling Considerations:**
-- Add more app replicas for higher concurrency
-- Use PostgreSQL read replicas for analytics
-- Use Redis Cluster for distributed caching
-- Consider message queue (RabbitMQ) for very high loads
-
-## Monitoring
-
-### Health Checks
-
-```bash
-# Application health
-curl http://localhost:8000/health
-
-# Expected response:
-{
-  "status": "healthy",
-  "database": "healthy",
-  "redis": "healthy"
-}
-```
-
-### Logs
-
-```bash
-# Docker logs
-docker-compose logs -f app
-
-# Application logs (structured JSON)
-# Logs include: conversation_id, user_id, model, tokens, errors
-```
-
-## Troubleshooting
-
-### Database Connection Issues
-
-```bash
-# Check PostgreSQL is running
-docker-compose ps postgres
-
-# Check connection
-docker-compose exec postgres psql -U aiagent -c "SELECT 1"
-```
-
-### Redis Connection Issues
-
-```bash
-# Check Redis is running
-docker-compose ps redis
-
-# Test connection
-docker-compose exec redis redis-cli ping
-```
-
-### Bot Not Responding
-
-1. Check bot tokens are correct in `.env`
-2. Verify network connectivity
-3. Check logs: `docker-compose logs app`
-4. Ensure intents are enabled (Discord)
-
-### GitHub Models API Errors
-
-1. Verify token has correct permissions
-2. Check rate limits
-3. Ensure model names are correct: `gpt-4`, `claude-3-opus`, `llama-3-70b`
-
-## Security Considerations
-
-- ✅ All secrets in environment variables
-- ✅ `.gitignore` excludes `.env` and sensitive files
-- ✅ Pydantic validation on all inputs
-- ✅ Rate limiting enabled
-- ✅ Non-root Docker user
-- ✅ PostgreSQL password authentication
-- ✅ Redis protected with network isolation
-- ✅ Health checks without exposing sensitive data
-
-## Documentation
-
-### Quick Start Guides
-- **[SETUP.md](SETUP.md)** - Quick setup guide with step-by-step instructions
-- **[README.md](README.md)** - This file - comprehensive project documentation
-
-### Architecture & Design
-- **[Architecture Design](docs/architecture.md)** - System architecture, layers, design decisions
-- **[Component Diagram](docs/component-diagram.md)** - Visual component interactions with Mermaid
-- **[Sequence Diagrams](docs/sequence-diagrams.md)** - Message flows and process sequences
-
-### Integration Guides
-- **[Slack Setup](docs/slack-setup.md)** - Complete Slack bot setup and configuration guide
-- **[MCP Integration](docs/mcp-integration.md)** - Model Context Protocol integration for custom business logic
-- **[MCP Registry](docs/mcp-registry.md)** - MCP tools registry for Kubernetes and custom integrations
-- **[Kubernetes Integration](docs/kubernetes-integration.md)** - Complete guide with natural language queries and status filtering
-
-### Configuration & Deployment
-- **[Environment Setup](.env.example)** - Environment variable template
-- **[Docker Compose](docker-compose.yml)** - Container orchestration configuration
-- **[Database Migrations](src/database/migrations/)** - Alembic database migrations
-
-### API Reference
-- **[Health Endpoints](src/api/health.py)** - `/health` and `/ready` endpoints
-- **[Webhook Endpoints](src/api/webhooks.py)** - Channel webhook handlers
-- **[Database Models](src/database/models.py)** - SQLAlchemy ORM models
-
-## License
-
-MIT License - see LICENSE file
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open Pull Request
-
-## Support
-
-- Documentation: This README + [docs/](docs/)
-- Issues: GitHub Issues
-- Security: Report via private disclosure
+| Environment | CPU | RAM | Disk |
+|---|---|---|---|
+| Development | 1 core | 2 GB | 10 GB |
+| Production (minimum) | 2 cores | 4 GB | 50 GB SSD |
+| Production (recommended) | 4 cores | 8 GB | 100 GB SSD |
 
 ---
 
-Built with ❤️ using Python 3.12, FastAPI, Discord.py, python-telegram-bot, and GitHub Models API
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit using conventional commits: `feat: add X`, `fix: Y`, `docs: update Z`
+4. Push and open a Pull Request against `main`
+
+---
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
+
+**Built-in security practices:**
+- All secrets via environment variables, never hardcoded
+- `.env` excluded from git via `.gitignore`
+- Non-root Docker user (UID 1000)
+- `no-new-privileges` security option
+- Pydantic validation on all inputs
+- Rate limiting on all API endpoints
+- Read-only kubeconfig mount
+- Network isolation via Docker bridge networks
+
+---
+
+## License
+
+[MIT License](LICENSE) -- Copyright 2026 Simple AI Agent Contributors
+
+---
+
+*Built with Python 3.12, FastAPI, discord.py, python-telegram-bot, slack_bolt, and the GitHub Models API*

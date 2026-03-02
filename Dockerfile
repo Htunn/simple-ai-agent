@@ -7,24 +7,25 @@ ARG VCS_REF
 ARG VERSION=1.0.0
 
 LABEL org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.authors="Simple AI Agent Team" \
-      org.opencontainers.image.url="https://github.com/yourorg/simple-ai-agent" \
-      org.opencontainers.image.source="https://github.com/yourorg/simple-ai-agent" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.title="Simple AI Agent" \
-      org.opencontainers.image.description="Production-ready multi-channel AI agent with MCP integration"
+    org.opencontainers.image.authors="Simple AI Agent Contributors" \
+    org.opencontainers.image.url="https://github.com/YOUR_USERNAME/simple-ai-agent" \
+    org.opencontainers.image.source="https://github.com/YOUR_USERNAME/simple-ai-agent" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.title="Simple AI Agent" \
+    org.opencontainers.image.description="Production-ready multi-channel AI agent with AIOps, Kubernetes management, and MCP integration" \
+    org.opencontainers.image.licenses="MIT"
 
 # Install build dependencies
 # kubectl required for Kubernetes MCP server
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      gcc \
-      g++ \
-      libpq-dev \
-      curl \
-      apt-transport-https \
-      ca-certificates \
-      gnupg \
+    gcc \
+    g++ \
+    libpq-dev \
+    curl \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
     && curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
     && echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list \
     && apt-get update \
@@ -46,11 +47,11 @@ FROM python:3.12-slim-bookworm
 # Install runtime dependencies
 # kubectl, curl for health checks, ca-certificates for HTTPS
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libpq5 \
-      curl \
-      ca-certificates \
-      apt-transport-https \
-      gnupg \
+    libpq5 \
+    curl \
+    ca-certificates \
+    apt-transport-https \
+    gnupg \
     && curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
     && echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list \
     && apt-get update \
