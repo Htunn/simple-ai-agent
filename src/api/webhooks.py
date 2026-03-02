@@ -1,7 +1,9 @@
 """Webhook endpoints for channel integrations."""
 
+import asyncio
 import hashlib
 import hmac
+import json
 import time
 import uuid
 from datetime import datetime, timezone
@@ -81,66 +83,81 @@ async def discord_webhook(request: Request) -> dict:
 async def slack_webhook(request: Request) -> dict:
     """
     Slack webhook endpoint for Events API.
-    
-    Receives events from Slack (messages, app mentions, etc.)
+
+    Returns 200 immediately after signature verification, then processes
+    the event in the background.  This satisfies Slack's 3-second SLA and
+    prevents retry-induced duplicate messages.
     """
     if not message_router:
         raise HTTPException(status_code=503, detail="Message router not initialized")
 
     try:
-        # Get request body
-        body = await request.json()
-        
-        # Handle URL verification challenge
+        # Read raw body once — needed for both HMAC verification and JSON parsing
+        body_bytes = await request.body()
+        body = json.loads(body_bytes)
+
+        # ── URL verification challenge (no auth needed) ──────────────────
         if body.get("type") == "url_verification":
             logger.info("slack_url_verification_received")
             return {"challenge": body.get("challenge")}
-        
-        # Handle event callbacks
+
+        # ── Event callback ───────────────────────────────────────────────
         if body.get("type") == "event_callback":
-            from src.config import get_settings
             settings = get_settings()
-            
-            # Verify signing secret (optional but recommended)
+
+            # Signature verification
             if settings.slack_signing_secret:
                 timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
                 signature = request.headers.get("X-Slack-Signature", "")
-                
-                # Calculate expected signature
-                import time
+
                 request_time = int(timestamp) if timestamp else 0
-                current_time = int(time.time())
-                
-                # Reject old requests (prevent replay attacks)
-                if abs(current_time - request_time) > 60 * 5:
+                if abs(time.time() - request_time) > 300:
                     raise HTTPException(status_code=400, detail="Request too old")
-                
-                # Verify signature
-                import hashlib
-                body_bytes = await request.body()
+
                 sig_basestring = f"v0:{timestamp}:{body_bytes.decode()}"
                 expected_signature = "v0=" + hmac.new(
                     settings.slack_signing_secret.encode(),
                     sig_basestring.encode(),
                     hashlib.sha256,
                 ).hexdigest()
-                
+
                 if not hmac.compare_digest(expected_signature, signature):
                     raise HTTPException(status_code=400, detail="Invalid signature")
-            
-            # Get Slack adapter
+
+            # ── Deduplication via event_id ────────────────────────────────
+            # Slack retries if no 200 within 3 s. We process async, so Slack
+            # will almost always receive 200 in time, but guard against any
+            # edge-case retry causing a duplicate reply.
+            event_id = body.get("event_id")
+            if event_id:
+                try:
+                    from src.database.redis import get_redis
+                    redis = get_redis()
+                    dedupe_key = f"slack:event:{event_id}"
+                    # SET NX with 5-minute expiry — returns True only on first call
+                    already_seen = await redis.get(dedupe_key)
+                    if already_seen:
+                        logger.info("slack_duplicate_event_skipped", event_id=event_id)
+                        return {"status": "ok"}
+                    await redis.setex(dedupe_key, 300, "1")
+                except Exception as redis_err:
+                    # Redis unavailable — log and continue (no dedup, but don't break)
+                    logger.warning("slack_dedup_redis_error", error=str(redis_err))
+
+            # ── Get Slack adapter ─────────────────────────────────────────
             slack_adapter = message_router.get_adapter("slack")
             if not slack_adapter:
                 raise HTTPException(status_code=404, detail="Slack adapter not found")
-            
-            # Extract and process the event
+
             event = body.get("event", {})
             if event:
-                await slack_adapter.handle_incoming_message(event)
-            
+                # Fire-and-forget: return 200 immediately, process in background.
+                # This prevents Slack from timing out (3-second limit) and retrying.
+                asyncio.create_task(slack_adapter.handle_incoming_message(event))
+
             return {"status": "ok"}
-        
-        # Handle other event types
+
+        # ── Unknown event types ──────────────────────────────────────────
         logger.warning("slack_unknown_event_type", event_type=body.get("type"))
         return {"status": "ignored"}
 
