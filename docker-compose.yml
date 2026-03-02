@@ -106,6 +106,30 @@ services:
     #   - /tmp
     #   - /app/logs
 
+  # ---------------------------------------------------------------------------
+  # Cloudflare Tunnel — exposes the app via a named public hostname
+  # without opening any inbound firewall ports.
+  # Tunnel URL: https://slack.simpleportchecker.com → http://app:8000
+  # CLOUDFLARE_TUNNEL_TOKEN must be set in .env (never commit the real value).
+  # ---------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: simple-ai-agent-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - aiagent-network
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   postgres:
     image: postgres:16-alpine
     container_name: simple-ai-agent-postgres
