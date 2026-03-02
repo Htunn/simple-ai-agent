@@ -33,12 +33,12 @@ Handles external communication with messaging platforms.
 
 **Components:**
 - `ChannelAdapter` (Abstract Base)
-- `DiscordAdapter`
 - `TelegramAdapter`
+- `SlackAdapter`
 - `MessageRouter`
 
 **Responsibilities:**
-- Protocol translation (Discord/Telegram → ChannelMessage)
+- Protocol translation (Telegram/Slack → ChannelMessage)
 - Message sending/receiving
 - Platform-specific formatting
 
@@ -103,7 +103,7 @@ Provides HTTP endpoints for webhooks and monitoring.
 
 ### Message Processing Flow
 
-1. **Ingestion**: Message arrives via Discord/Telegram
+1. **Ingestion**: Message arrives via Telegram/Slack
 2. **Normalization**: Channel adapter converts to `ChannelMessage`
 3. **Routing**: Message router forwards to message handler
 4. **Session Resolution**: Session manager gets/creates session
@@ -198,8 +198,8 @@ Provides HTTP endpoints for webhooks and monitoring.
 - **Rotation**: Regular token rotation policy
 
 ### Channel Security
-- **Discord**: Bot token + intents validation
 - **Telegram**: Webhook signature verification
+- **Slack**: Signing-secret HMAC verification
 - **GitHub**: Fine-grained token with minimal scope
 
 ## Deployment Architecture
@@ -411,7 +411,6 @@ The watchloop tracks `_known_issues` (a dict keyed by `resource_kind/namespace/n
 ## References
 
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Discord.py Guide](https://discordpy.readthedocs.io/)
 - [Python Telegram Bot](https://python-telegram-bot.readthedocs.io/)
 - [GitHub Models](https://github.com/marketplace/models)
 - [SQLAlchemy Async](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)

@@ -1,14 +1,14 @@
 """Channels package."""
 
 from src.channels.base import ChannelAdapter, ChannelMessage
-from src.channels.discord_adapter import DiscordAdapter
 from src.channels.router import MessageRouter, create_router
+from src.channels.slack_adapter import SlackAdapter
 from src.channels.telegram_adapter import TelegramAdapter
 
 __all__ = [
     "ChannelAdapter",
     "ChannelMessage",
-    "DiscordAdapter",
+    "SlackAdapter",
     "TelegramAdapter",
     "MessageRouter",
     "create_router",

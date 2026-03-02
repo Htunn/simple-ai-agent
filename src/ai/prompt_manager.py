@@ -9,9 +9,8 @@ class PromptManager:
     DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant. You provide clear, accurate, and concise responses to user questions. You are friendly, professional, and always aim to be helpful."""
 
     CHANNEL_PROMPTS = {
-        "discord": """You are a helpful AI assistant in a Discord server. Keep responses conversational and friendly. Use Discord markdown when appropriate.""",
         "telegram": """You are a helpful AI assistant in a Telegram chat. Keep responses clear and concise. You can use Telegram formatting like *bold* and _italic_.""",
-        "whatsapp": """You are a helpful AI assistant in a WhatsApp conversation. Keep responses brief and conversational.""",
+        "slack": """You are a helpful AI assistant in a Slack workspace. Keep responses clear and professional. Use Slack mrkdwn formatting when appropriate.""",
     }
 
     @classmethod
@@ -22,7 +21,7 @@ class PromptManager:
         Get system prompt for AI model.
 
         Args:
-            channel_type: Channel type (discord, telegram, whatsapp)
+            channel_type: Channel type (telegram, slack)
             custom_prompt: Custom system prompt to use instead
 
         Returns:

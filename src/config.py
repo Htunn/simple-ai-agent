@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     # GitHub Models API
     github_token: str = Field(..., description="GitHub fine-grained personal access token")
 
-    # Discord Bot
-    discord_token: str | None = Field(None, description="Discord bot token")
 
     # Telegram Bot
     telegram_token: str | None = Field(None, description="Telegram bot token")

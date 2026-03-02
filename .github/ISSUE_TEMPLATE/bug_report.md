@@ -30,7 +30,7 @@ assignees: ""
 - Python version:
 - Docker version (if applicable):
 - Simple AI Agent version / commit:
-- Channel (Discord / Telegram / Slack):
+- Channel (Telegram / Slack):
 
 ## Configuration (secrets removed)
 

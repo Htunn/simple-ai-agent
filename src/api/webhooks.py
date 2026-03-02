@@ -67,18 +67,6 @@ async def telegram_webhook(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/webhook/discord")
-async def discord_webhook(request: Request) -> dict:
-    """
-    Discord webhook endpoint (if using webhooks instead of gateway).
-
-    For now, Discord uses WebSocket gateway, but this can be extended.
-    """
-    raise HTTPException(
-        status_code=501, detail="Discord uses WebSocket gateway, not webhooks"
-    )
-
-
 @router.post("/webhook/slack")
 async def slack_webhook(request: Request) -> dict:
     """

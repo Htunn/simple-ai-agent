@@ -33,7 +33,7 @@
 
 ## Overview
 
-Simple AI Agent is a conversational AI agent that connects **Discord, Telegram, and Slack** to powerful backend capabilities:
+Simple AI Agent is a conversational AI agent that connects **Telegram and Slack** to powerful backend capabilities:
 
 | Capability | Technology |
 |---|---|
@@ -53,7 +53,6 @@ Simple AI Agent is a conversational AI agent that connects **Discord, Telegram, 
 ## Feature Matrix
 
 ### Messaging Channels
-- **Discord** — Gateway WebSocket, slash commands, message-intent detection
 - **Telegram** — Webhook mode, privacy-mode support, group and private chat
 - **Slack** — Events API, app-mention, IM history, signing-secret verification
 
@@ -134,7 +133,6 @@ The rendered diagram is committed at [`docs/hld.svg`](docs/hld.svg):
 ```
 Users
   |
-  +-- Discord WebSocket --> Discord Adapter  -+
   +-- Telegram Webhook  --> /api/webhook     -+
   +-- Slack Events API  --> /api/webhook     -+
                                               |
@@ -170,7 +168,7 @@ Observability:
 
 ```
 +-----------------------------------------------------+
-|                   Channel Layer                      |  Discord / Telegram / Slack adapters
+|                   Channel Layer                      |  Telegram / Slack adapters
 +-----------------------------------------------------+
 |                     API Layer                        |  FastAPI, rate-limiter, webhooks
 +-----------------------------------------------------+
@@ -265,13 +263,6 @@ curl http://localhost:8000/health
 1. Visit <https://github.com/settings/tokens> -> **Fine-grained personal access token**
 2. Enable **Models API** permission
 3. Set `GITHUB_TOKEN` in `.env`
-
-### Discord
-
-1. <https://discord.com/developers/applications> -> New Application -> Bot
-2. Enable **Message Content Intent** under Privileged Gateway Intents
-3. Copy token -> `DISCORD_TOKEN`
-4. Invite URL: `https://discord.com/oauth2/authorize?client_id=CLIENT_ID&permissions=2048&scope=bot`
 
 ### Telegram
 
@@ -521,7 +512,6 @@ Copy `.env.example` to `.env`.
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `GITHUB_TOKEN` | yes | -- | GitHub fine-grained PAT with Models access |
-| `DISCORD_TOKEN` | one of | -- | Discord bot token |
 | `TELEGRAM_TOKEN` | one of | -- | Telegram bot token |
 | `SLACK_BOT_TOKEN` | one of | -- | Slack bot token |
 | `SLACK_SIGNING_SECRET` | one of | -- | Slack signing secret |
@@ -534,7 +524,7 @@ Copy `.env.example` to `.env`.
 | `K8S_WATCHLOOP_ENABLED` | -- | `true` | Enable AIOps background poller |
 | `K8S_WATCHLOOP_INTERVAL` | -- | `30` | Poll interval in seconds |
 | `AUTO_REMEDIATION_ENABLED` | -- | `false` | Skip approvals for LOW-risk steps |
-| `AIOPS_NOTIFICATION_CHANNEL` | -- | -- | `telegram:CHAT_ID` or `discord:CHANNEL_ID` |
+| `AIOPS_NOTIFICATION_CHANNEL` | -- | -- | `telegram:CHAT_ID` or `slack:CHANNEL_ID` |
 | `APPROVAL_TIMEOUT_SECONDS` | -- | `300` | Seconds before approval auto-expires |
 | `PROMETHEUS_URL` | -- | -- | `http://prometheus:9090` |
 | `GRAFANA_URL` | -- | -- | `http://grafana:3000` |
@@ -571,7 +561,6 @@ simple-ai-agent/
 |   |   +-- prompt_manager.py     # System prompt templates
 |   +-- channels/
 |   |   +-- base.py               # BaseAdapter interface
-|   |   +-- discord_adapter.py    # Discord.py adapter
 |   |   +-- telegram_adapter.py   # python-telegram-bot adapter
 |   |   +-- slack_adapter.py      # slack_bolt adapter
 |   |   +-- router.py             # Fan-out / fan-in router
@@ -778,4 +767,4 @@ See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
 
 ---
 
-*Built with Python 3.12, FastAPI, discord.py, python-telegram-bot, slack_bolt, and the GitHub Models API*
+*Built with Python 3.12, FastAPI, python-telegram-bot, slack_bolt, and the GitHub Models API*

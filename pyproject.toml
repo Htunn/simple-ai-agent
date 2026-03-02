@@ -10,7 +10,7 @@ authors = [{name = "Simple AI Agent Contributors"}]
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
-keywords = ["ai", "agent", "kubernetes", "aiops", "discord", "telegram", "slack", "mcp", "fastapi"]
+keywords = ["ai", "agent", "kubernetes", "aiops", "telegram", "slack", "mcp", "fastapi"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

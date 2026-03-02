@@ -33,7 +33,7 @@ It transforms the agent from a reactive chatbot into a proactive SRE assistant t
 │                                                          │         │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐               │notify  │
 │  │RCAEngine │  │LogAnal-  │  │Telegram/ │◀──────────────┘         │
-│  │(GPT-4o)  │  │yzer      │  │Discord   │                         │
+│  │(GPT-4o)  │  │yzer      │  │Slack     │                         │
 │  └──────────┘  └──────────┘  └──────────┘                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -213,7 +213,7 @@ sequenceDiagram
     participant WL as K8sWatchLoop
     participant RE as RuleEngine
     participant Router as MessageRouter
-    participant User as SRE (Telegram/Discord)
+    participant User as SRE (Telegram/Slack)
 
     loop Every 30 seconds
         WL->>K8s: list_pods (all namespaces)

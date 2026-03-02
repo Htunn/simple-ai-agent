@@ -89,7 +89,6 @@ This project uses [Semantic Versioning](https://semver.org/).
 ### Added
 - Initial release
 - **FastAPI** application with async lifespan management
-- **Discord** adapter (discord.py, gateway WebSocket)
 - **Telegram** adapter (python-telegram-bot, webhook + long-poll)
 - Channel router for fan-out/fan-in message routing
 - **GitHub Models API** client (openai-compatible SDK)

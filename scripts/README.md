@@ -208,7 +208,6 @@ The scripts respect these environment variables from `.env`:
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_URL` - Redis connection string
 - `GITHUB_TOKEN` - GitHub API token
-- `DISCORD_TOKEN` - Discord bot token (optional)
 - `TELEGRAM_TOKEN` - Telegram bot token (optional)
 - `SLACK_BOT_TOKEN` - Slack bot token (optional)
 

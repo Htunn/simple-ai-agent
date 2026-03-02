@@ -16,13 +16,6 @@ users: "End Users" {
   style.stroke: "#1a73e8"
 }
 
-discord_platform: "Discord Platform" {
-  shape: rectangle
-  style.fill: "#5865f2"
-  style.font-color: white
-  style.stroke: "#4752c4"
-}
-
 telegram_platform: "Telegram Platform" {
   shape: rectangle
   style.fill: "#229ed9"
@@ -82,10 +75,6 @@ app: "Simple AI Agent\n(FastAPI + uvicorn)" {
     style.fill: "#e3f2fd"
     style.stroke: "#90caf9"
 
-    discord_adapter: "Discord Adapter\n(discord.py)" {
-      shape: rectangle
-      style.fill: "#c5cae9"
-    }
     telegram_adapter: "Telegram Adapter\n(python-telegram-bot)" {
       shape: rectangle
       style.fill: "#c5cae9"
@@ -99,7 +88,6 @@ app: "Simple AI Agent\n(FastAPI + uvicorn)" {
       style.fill: "#9fa8da"
     }
 
-    discord_adapter -> channel_router: "inbound msg"
     telegram_adapter -> channel_router: "inbound msg"
     slack_adapter -> channel_router: "inbound msg"
   }
@@ -324,12 +312,10 @@ obs_stack: "Observability Stack" {
 ###############################################################################
 
 # ── User → Channels ──────────────────────────────────────────────────────────
-users -> discord_platform: "chat message\n(WebSocket)"
 users -> telegram_platform: "chat message\n(long-poll / webhook)"
 users -> slack_platform: "chat message\n(Events API)"
 
 # ── Channels → Adapters ───────────────────────────────────────────────────────
-discord_platform -> app.channel_layer.discord_adapter: "gateway event"
 telegram_platform -> app.api_layer.webhook_endpoints: "POST /api/webhook/telegram"
 slack_platform -> app.api_layer.webhook_endpoints: "POST /api/webhook/slack"
 
@@ -365,10 +351,8 @@ mcp_port_checker -> app.mcp_layer.sse_transport: "SSE events → result"
 
 # ── Response back to user ─────────────────────────────────────────────────────
 app.business_layer.message_handler -> app.channel_layer.channel_router: "formatted response"
-app.channel_layer.channel_router -> app.channel_layer.discord_adapter: "send"
 app.channel_layer.channel_router -> app.channel_layer.telegram_adapter: "send"
 app.channel_layer.channel_router -> app.channel_layer.slack_adapter: "send"
-app.channel_layer.discord_adapter -> discord_platform: "REST / WebSocket"
 app.channel_layer.telegram_adapter -> telegram_platform: "Bot API"
 app.channel_layer.slack_adapter -> slack_platform: "Web API"
 

@@ -9,8 +9,8 @@ This diagram shows the complete flow of processing a user message and generating
 ```mermaid
 sequenceDiagram
     actor User
-    participant Discord
-    participant DiscordAdapter
+    participant Telegram
+    participant TelegramAdapter
     participant Router
     participant MessageHandler
     participant SessionManager
@@ -22,15 +22,15 @@ sequenceDiagram
     participant MessageRepo
     participant PostgreSQL
 
-    User->>Discord: Send message: "Hello!"
-    Discord->>DiscordAdapter: on_message event
-    DiscordAdapter->>DiscordAdapter: parse_message()
-    DiscordAdapter->>Router: handle_incoming_message(ChannelMessage)
+    User->>Telegram: Send message: "Hello!"
+    Telegram->>TelegramAdapter: update event
+    TelegramAdapter->>TelegramAdapter: parse_message()
+    TelegramAdapter->>Router: handle_incoming_message(ChannelMessage)
     Router->>MessageHandler: handle_message(message)
     
     %% Session Management
     MessageHandler->>SessionManager: get_or_create_session(channel, user_id)
-    SessionManager->>Redis: HGETALL session:discord:user123
+    SessionManager->>Redis: HGETALL session:telegram:user123
     alt Session in cache
         Redis-->>SessionManager: session_data
     else Session not in cache
@@ -44,7 +44,7 @@ sequenceDiagram
         end
         SessionManager->>PostgreSQL: SELECT conversation WHERE user_id=?
         PostgreSQL-->>SessionManager: conversation_data
-        SessionManager->>Redis: HSET session:discord:user123
+        SessionManager->>Redis: HSET session:telegram:user123
         Redis-->>SessionManager: OK
     end
     SessionManager-->>MessageHandler: session_data
@@ -89,14 +89,14 @@ sequenceDiagram
     MessageHandler->>SessionManager: update_session_activity(channel, user_id)
     SessionManager->>PostgreSQL: UPDATE conversations SET last_activity=NOW()
     PostgreSQL-->>SessionManager: OK
-    SessionManager->>Redis: EXPIRE session:discord:user123 3600
+    SessionManager->>Redis: EXPIRE session:telegram:user123 3600
     Redis-->>SessionManager: OK
 
     %% Send response
     MessageHandler->>Router: send_message(channel, user_id, response)
-    Router->>DiscordAdapter: send_message(user_id, "Hi! How can I help?")
-    DiscordAdapter->>Discord: channel.send("Hi! How can I help?")
-    Discord->>User: Display response
+    Router->>TelegramAdapter: send_message(user_id, "Hi! How can I help?")
+    TelegramAdapter->>Telegram: bot.send_message(chat_id, "Hi! How can I help?")
+    Telegram->>User: Display response
 ```
 
 ## 2. Command Processing Flow (/model)
@@ -150,8 +150,8 @@ This diagram shows how a conversation is reset.
 ```mermaid
 sequenceDiagram
     actor User
-    participant Discord
-    participant DiscordAdapter
+    participant Telegram
+    participant TelegramAdapter
     participant Router
     participant MessageHandler
     participant SessionManager
@@ -159,17 +159,17 @@ sequenceDiagram
     participant Redis
     participant PostgreSQL
 
-    User->>Discord: Send "/reset"
-    Discord->>DiscordAdapter: on_message event
-    DiscordAdapter->>Router: handle_incoming_message(message)
+    User->>Telegram: Send "/reset"
+    Telegram->>TelegramAdapter: update event
+    TelegramAdapter->>Router: handle_incoming_message(message)
     Router->>MessageHandler: handle_message(message)
     
     MessageHandler->>MessageHandler: Check command: /reset
     
-    MessageHandler->>SessionManager: get_or_create_session(discord, user789)
+    MessageHandler->>SessionManager: get_or_create_session(telegram, user789)
     SessionManager-->>MessageHandler: session_data{conversation_id: "abc-123"}
     
-    MessageHandler->>SessionManager: clear_session(discord, user789)
+    MessageHandler->>SessionManager: clear_session(telegram, user789)
     
     %% Deactivate conversation
     SessionManager->>ConversationRepo: deactivate(conversation_id)
@@ -178,14 +178,14 @@ sequenceDiagram
     ConversationRepo-->>SessionManager: deactivated_conversation
     
     %% Clear cache
-    SessionManager->>Redis: DEL session:discord:user789
+    SessionManager->>Redis: DEL session:telegram:user789
     Redis-->>SessionManager: 1 key deleted
     SessionManager-->>MessageHandler: session cleared
     
-    MessageHandler->>Router: send_message(discord, user789, "Conversation reset!")
-    Router->>DiscordAdapter: send_message(user789, response)
-    DiscordAdapter->>Discord: channel.send("Conversation reset! Starting fresh.")
-    Discord->>User: Display confirmation
+    MessageHandler->>Router: send_message(telegram, user789, "Conversation reset!")
+    Router->>TelegramAdapter: send_message(user789, response)
+    TelegramAdapter->>Telegram: bot.send_message(chat_id, "Conversation reset! Starting fresh.")
+    Telegram->>User: Display confirmation
 ```
 
 ## 4. Application Startup Flow
@@ -201,8 +201,8 @@ sequenceDiagram
     participant Database
     participant Redis
     participant Router
-    participant DiscordAdapter
     participant TelegramAdapter
+    participant SlackAdapter
     participant GitHubClient
     participant MessageHandler
 
@@ -224,12 +224,12 @@ sequenceDiagram
     Redis-->>Main: Redis ready
     
     Main->>Router: create_router()
-    Router->>DiscordAdapter: __init__(DISCORD_TOKEN)
-    DiscordAdapter->>DiscordAdapter: Setup intents & bot
-    DiscordAdapter-->>Router: adapter created
     Router->>TelegramAdapter: __init__(TELEGRAM_TOKEN)
     TelegramAdapter->>TelegramAdapter: Create application
     TelegramAdapter-->>Router: adapter created
+    Router->>SlackAdapter: __init__(SLACK_BOT_TOKEN)
+    SlackAdapter->>SlackAdapter: Setup Bolt app
+    SlackAdapter-->>Router: adapter created
     Router-->>Main: router with adapters
     
     Main->>GitHubClient: __init__(GITHUB_TOKEN)
@@ -243,14 +243,14 @@ sequenceDiagram
     Router-->>Main: handler registered
     
     Main->>Router: start_all()
-    par Start Discord
-        Router->>DiscordAdapter: start()
-        DiscordAdapter->>DiscordAdapter: bot.start(token)
-        Note over DiscordAdapter: WebSocket connection<br/>to Discord
-    and Start Telegram
+    par Start Telegram
         Router->>TelegramAdapter: start()
         TelegramAdapter->>TelegramAdapter: application.run_polling()
         Note over TelegramAdapter: Long polling for updates
+    and Start Slack
+        Router->>SlackAdapter: start()
+        SlackAdapter->>SlackAdapter: handler registered
+        Note over SlackAdapter: Webhook events API
     end
     
     Main->>FastAPI: Start serving
@@ -515,17 +515,17 @@ This diagram shows the enhanced Kubernetes integration with NLP query parsing.
 ```mermaid
 sequenceDiagram
     actor User
-    participant Discord
-    participant DiscordAdapter
+    participant Telegram
+    participant TelegramAdapter
     participant MessageHandler
     participant MCPManager
     participant StdioTransport
     participant K8sServer
     participant Kubectl
 
-    User->>Discord: "show me error pods in pos-order4u"
-    Discord->>DiscordAdapter: on_message event
-    DiscordAdapter->>MessageHandler: handle_message(ChannelMessage)
+    User->>Telegram: "show me error pods in pos-order4u"
+    Telegram->>TelegramAdapter: update event
+    TelegramAdapter->>MessageHandler: handle_message(ChannelMessage)
     
     MessageHandler->>MessageHandler: _is_kubernetes_query()
     Note over MessageHandler: Detected: pods keyword
@@ -560,9 +560,9 @@ sequenceDiagram
     MessageHandler->>MessageHandler: Format output with emojis
     Note over MessageHandler: ❌ for error pods<br/>Pod name, status, restarts
     
-    MessageHandler->>DiscordAdapter: send_message()
-    DiscordAdapter->>Discord: channel.send()
-    Discord->>User: "📦 Pods with issues in namespace pos-order4u:\n\n❌ worker-def456\nStatus: CrashLoopBackOff | Restarts: 10"
+    MessageHandler->>TelegramAdapter: send_message()
+    TelegramAdapter->>Telegram: bot.send_message()
+    Telegram->>User: "📦 Pods with issues in namespace pos-order4u:\n\n❌ worker-def456\nStatus: CrashLoopBackOff | Restarts: 10"
 ```
 
 ## 10. Application Shutdown with MCP Cleanup
@@ -601,8 +601,8 @@ sequenceDiagram
         
     and Stop Channel Adapters
         Main->>Router: stop_all()
-        Router->>Router: Stop Discord bot
         Router->>Router: Stop Telegram polling
+        Router->>Router: Stop Slack handler
         Router-->>Main: Adapters stopped
     end
     
