@@ -9,8 +9,8 @@ This diagram shows the complete flow of processing a user message and generating
 ```mermaid
 sequenceDiagram
     actor User
-    participant Discord
-    participant DiscordAdapter
+    participant Telegram
+    participant TelegramAdapter
     participant Router
     participant MessageHandler
     participant SessionManager
@@ -22,15 +22,15 @@ sequenceDiagram
     participant MessageRepo
     participant PostgreSQL
 
-    User->>Discord: Send message: "Hello!"
-    Discord->>DiscordAdapter: on_message event
-    DiscordAdapter->>DiscordAdapter: parse_message()
-    DiscordAdapter->>Router: handle_incoming_message(ChannelMessage)
+    User->>Telegram: Send message: "Hello!"
+    Telegram->>TelegramAdapter: update event
+    TelegramAdapter->>TelegramAdapter: parse_message()
+    TelegramAdapter->>Router: handle_incoming_message(ChannelMessage)
     Router->>MessageHandler: handle_message(message)
     
     %% Session Management
     MessageHandler->>SessionManager: get_or_create_session(channel, user_id)
-    SessionManager->>Redis: HGETALL session:discord:user123
+    SessionManager->>Redis: HGETALL session:telegram:user123
     alt Session in cache
         Redis-->>SessionManager: session_data
     else Session not in cache
@@ -44,7 +44,7 @@ sequenceDiagram
         end
         SessionManager->>PostgreSQL: SELECT conversation WHERE user_id=?
         PostgreSQL-->>SessionManager: conversation_data
-        SessionManager->>Redis: HSET session:discord:user123
+        SessionManager->>Redis: HSET session:telegram:user123
         Redis-->>SessionManager: OK
     end
     SessionManager-->>MessageHandler: session_data
@@ -89,14 +89,14 @@ sequenceDiagram
     MessageHandler->>SessionManager: update_session_activity(channel, user_id)
     SessionManager->>PostgreSQL: UPDATE conversations SET last_activity=NOW()
     PostgreSQL-->>SessionManager: OK
-    SessionManager->>Redis: EXPIRE session:discord:user123 3600
+    SessionManager->>Redis: EXPIRE session:telegram:user123 3600
     Redis-->>SessionManager: OK
 
     %% Send response
     MessageHandler->>Router: send_message(channel, user_id, response)
-    Router->>DiscordAdapter: send_message(user_id, "Hi! How can I help?")
-    DiscordAdapter->>Discord: channel.send("Hi! How can I help?")
-    Discord->>User: Display response
+    Router->>TelegramAdapter: send_message(user_id, "Hi! How can I help?")
+    TelegramAdapter->>Telegram: bot.send_message(chat_id, "Hi! How can I help?")
+    Telegram->>User: Display response
 ```
 
 ## 2. Command Processing Flow (/model)
@@ -150,8 +150,8 @@ This diagram shows how a conversation is reset.
 ```mermaid
 sequenceDiagram
     actor User
-    participant Discord
-    participant DiscordAdapter
+    participant Telegram
+    participant TelegramAdapter
     participant Router
     participant MessageHandler
     participant SessionManager
@@ -159,17 +159,17 @@ sequenceDiagram
     participant Redis
     participant PostgreSQL
 
-    User->>Discord: Send "/reset"
-    Discord->>DiscordAdapter: on_message event
-    DiscordAdapter->>Router: handle_incoming_message(message)
+    User->>Telegram: Send "/reset"
+    Telegram->>TelegramAdapter: update event
+    TelegramAdapter->>Router: handle_incoming_message(message)
     Router->>MessageHandler: handle_message(message)
     
     MessageHandler->>MessageHandler: Check command: /reset
     
-    MessageHandler->>SessionManager: get_or_create_session(discord, user789)
+    MessageHandler->>SessionManager: get_or_create_session(telegram, user789)
     SessionManager-->>MessageHandler: session_data{conversation_id: "abc-123"}
     
-    MessageHandler->>SessionManager: clear_session(discord, user789)
+    MessageHandler->>SessionManager: clear_session(telegram, user789)
     
     %% Deactivate conversation
     SessionManager->>ConversationRepo: deactivate(conversation_id)
@@ -178,14 +178,14 @@ sequenceDiagram
     ConversationRepo-->>SessionManager: deactivated_conversation
     
     %% Clear cache
-    SessionManager->>Redis: DEL session:discord:user789
+    SessionManager->>Redis: DEL session:telegram:user789
     Redis-->>SessionManager: 1 key deleted
     SessionManager-->>MessageHandler: session cleared
     
-    MessageHandler->>Router: send_message(discord, user789, "Conversation reset!")
-    Router->>DiscordAdapter: send_message(user789, response)
-    DiscordAdapter->>Discord: channel.send("Conversation reset! Starting fresh.")
-    Discord->>User: Display confirmation
+    MessageHandler->>Router: send_message(telegram, user789, "Conversation reset!")
+    Router->>TelegramAdapter: send_message(user789, response)
+    TelegramAdapter->>Telegram: bot.send_message(chat_id, "Conversation reset! Starting fresh.")
+    Telegram->>User: Display confirmation
 ```
 
 ## 4. Application Startup Flow
@@ -201,8 +201,8 @@ sequenceDiagram
     participant Database
     participant Redis
     participant Router
-    participant DiscordAdapter
     participant TelegramAdapter
+    participant SlackAdapter
     participant GitHubClient
     participant MessageHandler
 
@@ -224,12 +224,12 @@ sequenceDiagram
     Redis-->>Main: Redis ready
     
     Main->>Router: create_router()
-    Router->>DiscordAdapter: __init__(DISCORD_TOKEN)
-    DiscordAdapter->>DiscordAdapter: Setup intents & bot
-    DiscordAdapter-->>Router: adapter created
     Router->>TelegramAdapter: __init__(TELEGRAM_TOKEN)
     TelegramAdapter->>TelegramAdapter: Create application
     TelegramAdapter-->>Router: adapter created
+    Router->>SlackAdapter: __init__(SLACK_BOT_TOKEN)
+    SlackAdapter->>SlackAdapter: Setup Bolt app
+    SlackAdapter-->>Router: adapter created
     Router-->>Main: router with adapters
     
     Main->>GitHubClient: __init__(GITHUB_TOKEN)
@@ -243,14 +243,14 @@ sequenceDiagram
     Router-->>Main: handler registered
     
     Main->>Router: start_all()
-    par Start Discord
-        Router->>DiscordAdapter: start()
-        DiscordAdapter->>DiscordAdapter: bot.start(token)
-        Note over DiscordAdapter: WebSocket connection<br/>to Discord
-    and Start Telegram
+    par Start Telegram
         Router->>TelegramAdapter: start()
         TelegramAdapter->>TelegramAdapter: application.run_polling()
         Note over TelegramAdapter: Long polling for updates
+    and Start Slack
+        Router->>SlackAdapter: start()
+        SlackAdapter->>SlackAdapter: handler registered
+        Note over SlackAdapter: Webhook events API
     end
     
     Main->>FastAPI: Start serving
@@ -515,17 +515,17 @@ This diagram shows the enhanced Kubernetes integration with NLP query parsing.
 ```mermaid
 sequenceDiagram
     actor User
-    participant Discord
-    participant DiscordAdapter
+    participant Telegram
+    participant TelegramAdapter
     participant MessageHandler
     participant MCPManager
     participant StdioTransport
     participant K8sServer
     participant Kubectl
 
-    User->>Discord: "show me error pods in pos-order4u"
-    Discord->>DiscordAdapter: on_message event
-    DiscordAdapter->>MessageHandler: handle_message(ChannelMessage)
+    User->>Telegram: "show me error pods in pos-order4u"
+    Telegram->>TelegramAdapter: update event
+    TelegramAdapter->>MessageHandler: handle_message(ChannelMessage)
     
     MessageHandler->>MessageHandler: _is_kubernetes_query()
     Note over MessageHandler: Detected: pods keyword
@@ -560,9 +560,9 @@ sequenceDiagram
     MessageHandler->>MessageHandler: Format output with emojis
     Note over MessageHandler: ❌ for error pods<br/>Pod name, status, restarts
     
-    MessageHandler->>DiscordAdapter: send_message()
-    DiscordAdapter->>Discord: channel.send()
-    Discord->>User: "📦 Pods with issues in namespace pos-order4u:\n\n❌ worker-def456\nStatus: CrashLoopBackOff | Restarts: 10"
+    MessageHandler->>TelegramAdapter: send_message()
+    TelegramAdapter->>Telegram: bot.send_message()
+    Telegram->>User: "📦 Pods with issues in namespace pos-order4u:\n\n❌ worker-def456\nStatus: CrashLoopBackOff | Restarts: 10"
 ```
 
 ## 10. Application Shutdown with MCP Cleanup
@@ -601,8 +601,8 @@ sequenceDiagram
         
     and Stop Channel Adapters
         Main->>Router: stop_all()
-        Router->>Router: Stop Discord bot
         Router->>Router: Stop Telegram polling
+        Router->>Router: Stop Slack handler
         Router-->>Main: Adapters stopped
     end
     
@@ -716,3 +716,226 @@ tool_registry = {
 }
 ```
 
+
+---
+
+## 7. AIOps — Cluster Event Detection & Alert Notification
+
+Shows how the K8sWatchLoop detects anomalies, the RuleEngine matches them to playbooks, and alerts are sent to the SRE channel.
+
+```mermaid
+sequenceDiagram
+    participant K8s as Kubernetes API
+    participant WL as K8sWatchLoop
+    participant RE as RuleEngine
+    participant Router as MessageRouter
+    participant User as SRE (Chat)
+
+    loop Every 30 seconds
+        WL->>K8s: list_pods (all namespaces)
+        K8s-->>WL: pod list
+        WL->>WL: Detect CrashLoop / OOMKilled pods
+
+        WL->>K8s: get_not_ready_nodes()
+        K8s-->>WL: node list
+        WL->>WL: Detect NotReady nodes (clear recovered)
+
+        WL->>K8s: list_namespaces() + list_deployments(ns)
+        K8s-->>WL: deployment list
+        WL->>WL: Detect 0-replica deployments (clear recovered)
+    end
+
+    Note over WL: New issue detected (not in _known_issues)
+
+    WL->>WL: Create ClusterEvent(type=crash_loop, severity=critical)
+    WL->>WL: Store key in _known_issues
+    WL->>RE: evaluate(event.to_dict())
+    RE->>RE: Match event_type + namespace_filter + severity_filter
+    RE-->>WL: [(rule-001, "crash_loop_remediation")]
+
+    WL->>Router: send_message(telegram, chat_id, alert_msg)
+    Router->>User: 🚨 AIOps Alert [CRITICAL]\ncrash_loop: Pod/nginx-abc in prod\nPlaybooks queued: crash_loop_remediation\nHigh-risk steps will require your approval.
+```
+
+---
+
+## 8. AIOps — Auto-Remediation with PlaybookExecutor
+
+Shows the full playbook execution lifecycle: LOW-risk steps execute immediately, MEDIUM/HIGH pause for approval.
+
+```mermaid
+sequenceDiagram
+    participant WL as K8sWatchLoop
+    participant PE as PlaybookExecutor
+    participant PB as PlaybookRegistry
+    participant MCP as MCPManager
+    participant K8s as Kubernetes API
+    participant AM as ApprovalManager
+    participant Redis as Redis
+    participant Router as MessageRouter
+    participant User as SRE
+
+    WL->>PE: execute("crash_loop_remediation", context={pod, ns}, channel)
+    PE->>PB: get("crash_loop_remediation")
+    PB-->>PE: Playbook(4 steps)
+    PE->>PE: status = "running"
+
+    rect rgb(200, 240, 200)
+        Note over PE,K8s: Step 1 — Describe Pod (LOW risk, execute immediately)
+        PE->>MCP: call_tool("k8s_describe_resource", {pod, ns})
+        MCP->>K8s: kubectl describe pod nginx-abc
+        K8s-->>MCP: conditions + events
+        MCP-->>PE: pod description
+        PE->>Router: ▶️ Describe Pod: [output snippet]
+        Router->>User: Progress update
+    end
+
+    rect rgb(200, 240, 200)
+        Note over PE,K8s: Step 2 — Fetch Logs (LOW risk, execute immediately)
+        PE->>MCP: call_tool("k8s_analyze_logs", {pod, ns, tail=100})
+        MCP->>K8s: kubectl logs nginx-abc --tail=100
+        K8s-->>MCP: log lines
+        MCP-->>PE: log output
+        PE->>Router: ▶️ Fetch Logs: [log snippet]
+        Router->>User: Progress update
+    end
+
+    rect rgb(255, 240, 200)
+        Note over PE,Redis: Step 3 — Restart Pod (MEDIUM risk, request approval)
+        PE->>PE: status = "awaiting_approval"
+        PE->>AM: request_approval(tool=k8s_restart_pod, risk=MEDIUM)
+        AM->>Redis: SETEX approval:<uuid> 900s <json>
+        AM->>Router: Approval message to user
+        Router->>User: 🟠 Approval Required [MEDIUM]\nAction: Restart nginx-abc\nReply: approve a1b2c3d4
+        Note over PE: Execution paused — waiting for user response
+    end
+```
+
+---
+
+## 9. AIOps — Human-in-the-Loop Approval Gate
+
+Shows the full approval lifecycle: request → user response → execute or reject.
+
+```mermaid
+sequenceDiagram
+    participant User as SRE (Chat)
+    participant Router as MessageRouter
+    participant AM as ApprovalManager
+    participant Redis as Redis
+    participant MCP as MCPManager
+    participant K8s as Kubernetes API
+
+    User->>Router: "approve a1b2c3d4"
+    Router->>AM: process_response("approve a1b2c3d4", user_id, channel)
+
+    AM->>Redis: SCAN approval:* (find matching approval)
+    Redis-->>AM: approval JSON (status=pending)
+
+    AM->>AM: Validate: status==pending, not expired
+
+    alt Approved
+        AM->>MCP: call_tool("k8s_restart_pod", {nginx-abc, prod})
+        MCP->>K8s: DELETE pod nginx-abc
+        K8s-->>MCP: 200 OK (controller will recreate)
+        MCP-->>AM: success
+        AM->>Redis: UPDATE status=executed
+        AM-->>Router: ✅ Restart pod nginx-abc executed successfully.
+        Router->>User: ✅ Action complete
+
+    else Rejected
+        User->>Router: "reject a1b2c3d4"
+        AM->>Redis: UPDATE status=rejected
+        AM-->>Router: ❌ Action rejected
+        Router->>User: ❌ Action cancelled
+
+    else Expired (TTL elapsed)
+        User->>Router: "approve a1b2c3d4" (after 15 min)
+        AM->>Redis: SCAN — key not found (TTL expired)
+        Redis-->>AM: nil
+        AM-->>Router: ⚠️ No pending approval found. It may have expired.
+        Router->>User: ⚠️ Approval expired
+    end
+```
+
+---
+
+## 10. AIOps — AI Root Cause Analysis
+
+Shows how the RCA engine combines K8s data collection with GPT-4o analysis to generate a structured incident report.
+
+```mermaid
+sequenceDiagram
+    actor SRE
+    participant Bot as AI Agent
+    participant K8s as KubernetesClient
+    participant RCA as RCAEngine
+    participant AI as GitHub Models (GPT-4o)
+
+    SRE->>Bot: "analyze incident nginx-abc in prod"
+
+    Bot->>K8s: get_pod("nginx-abc", "prod")
+    K8s-->>Bot: pod (restarts=14, status=CrashLoopBackOff)
+
+    Bot->>K8s: get_pod_logs("nginx-abc", tail=200)
+    K8s-->>Bot: 200 log lines (OOMKill patterns)
+
+    Bot->>K8s: list namespaced events for nginx-abc
+    K8s-->>Bot: events (Backoff, OOMKilling, Pulling)
+
+    Bot->>RCA: analyze({resource_name, namespace, restarts, events, logs})
+
+    RCA->>RCA: _build_context_message(incident_context)
+    Note over RCA: Formats:\n• Resource + namespace\n• Restart count\n• K8s events list\n• Last 50 log lines
+
+    RCA->>AI: POST /chat/completions\n[system: SRE specialist prompt]\n[user: formatted incident context]
+
+    Note over AI: Analyzes failure pattern,\nevidence chain, root cause
+
+    AI-->>RCA: {"root_cause": "Memory leak in connection pool",\n "confidence": 0.87,\n "failure_pattern": "OOMKill",\n "recommended_actions": [...],\n "supporting_evidence": [...]}
+
+    RCA->>RCA: json.loads() → RCAReport
+    RCA-->>Bot: RCAReport(root_cause, confidence=0.87, pattern=OOMKill)
+
+    Bot->>SRE: 🔍 Root Cause Analysis\n\nPattern: OOMKill\nRoot Cause: Memory leak in connection pool\nConfidence: 87%\n\nSupporting Evidence:\n  - OOM kill at 14:23:01\n  - 14 restarts in 2h\n\nRecommended Actions:\n  1. Increase memory limit to 1Gi\n  2. Profile heap with async-profiler\n  3. Set memory alert at 80%
+```
+
+---
+
+## 11. AIOps — Alertmanager Webhook Integration
+
+Shows how Prometheus alerts flow through Alertmanager into the AIOps remediation pipeline.
+
+```mermaid
+sequenceDiagram
+    participant Prom as Prometheus
+    participant AM_ext as Alertmanager
+    participant Webhook as FastAPI Webhook
+    participant RE as RuleEngine
+    participant PE as PlaybookExecutor
+    participant Router as MessageRouter
+    participant User as SRE
+
+    Note over Prom: Scrapes /metrics every 15s
+    Prom->>Prom: Evaluate alert_rules.yml
+    Note over Prom: KubePodCrashLooping\nfor: 2m fires
+
+    Prom->>AM_ext: POST /api/v1/alerts (firing)
+    AM_ext->>AM_ext: group_wait: 30s
+    AM_ext->>AM_ext: Apply routing rules
+
+    AM_ext->>Webhook: POST /api/webhook/alertmanager\n{alerts: [{status: firing,\n labels: {alertname: KubePodCrashLooping,\n  namespace: prod, pod: nginx-abc}}]}
+
+    Webhook->>Webhook: Validate payload
+    Webhook->>RE: evaluate({event_type: alertmanager_firing, alertname, namespace, pod})
+    RE-->>Webhook: matched rules
+
+    Webhook->>Router: send_message(aiops_channel, alert_summary)
+    Router->>User: 🚨 Alertmanager: KubePodCrashLooping\nnamespace=prod  pod=nginx-abc
+
+    alt AUTO_REMEDIATION_ENABLED=true
+        Webhook->>PE: execute("crash_loop_remediation", context)
+        PE-->>Router: Playbook step progress
+        Router->>User: ▶️ Describing pod...\n▶️ Fetching logs...\n🟠 Approval required for restart
+    end
+```

@@ -1,0 +1,13 @@
+# Grafana dashboard auto-provisioning config
+apiVersion: 1
+
+providers:
+  - name: Simple AI Agent
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

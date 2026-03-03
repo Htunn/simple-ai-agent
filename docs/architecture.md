@@ -33,12 +33,12 @@ Handles external communication with messaging platforms.
 
 **Components:**
 - `ChannelAdapter` (Abstract Base)
-- `DiscordAdapter`
 - `TelegramAdapter`
+- `SlackAdapter`
 - `MessageRouter`
 
 **Responsibilities:**
-- Protocol translation (Discord/Telegram → ChannelMessage)
+- Protocol translation (Telegram/Slack → ChannelMessage)
 - Message sending/receiving
 - Platform-specific formatting
 
@@ -103,7 +103,7 @@ Provides HTTP endpoints for webhooks and monitoring.
 
 ### Message Processing Flow
 
-1. **Ingestion**: Message arrives via Discord/Telegram
+1. **Ingestion**: Message arrives via Telegram/Slack
 2. **Normalization**: Channel adapter converts to `ChannelMessage`
 3. **Routing**: Message router forwards to message handler
 4. **Session Resolution**: Session manager gets/creates session
@@ -198,8 +198,8 @@ Provides HTTP endpoints for webhooks and monitoring.
 - **Rotation**: Regular token rotation policy
 
 ### Channel Security
-- **Discord**: Bot token + intents validation
 - **Telegram**: Webhook signature verification
+- **Slack**: Signing-secret HMAC verification
 - **GitHub**: Fine-grained token with minimal scope
 
 ## Deployment Architecture
@@ -302,6 +302,92 @@ Provides HTTP endpoints for webhooks and monitoring.
 - **CPU**: <10% idle, 50-70% under load
 - **Database**: ~10 connections per instance
 
+---
+
+## AIOps Architecture
+
+The AIOps subsystem transforms the agent from a reactive chatbot into a **proactive SRE assistant** that watches the Kubernetes cluster 24/7 and autonomously (or with human approval) remediates detected issues.
+
+### AIOps Data Flow
+
+```
+Kubernetes API
+      │  (poll every 30s)
+      ▼
+ K8sWatchLoop  ──────────────────────────────────────────────────┐
+      │ ClusterEvent                                              │
+      │ (crash_loop / oom_killed                                  │
+      │  not_ready_node / replication_failure)                    │
+      ▼                                                           │
+ RuleEngine                                                       │
+      │ matching rules → playbook_ids                            │
+      ▼                                                           │
+ PlaybookExecutor  ──────── LOW risk ──▶ MCPManager ──▶ K8s API  │
+      │                                                           │
+      └── MEDIUM/HIGH risk ──▶ ApprovalManager                   │
+                                    │ Redis (TTL)                 │
+                                    │ Approval message            │
+                                    ▼                             │
+                              Chat User (SRE)                     │
+                                    │ approve / reject            │
+                                    ▼                             │
+                              MCPManager ──▶ K8s API              │
+                                                                   │
+ Alertmanager Webhook ──────────────────────────────────────────▶ │
+ (Prometheus → /api/webhook/alertmanager)                         │
+                                                                   │
+ RCAEngine (GPT-4o) ◀──────────────────────────── on demand ──────┘
+ LogAnalyzer (regex + GPT-4o-mini)
+```
+
+### AIOps Components
+
+| Component | Location | Responsibility |
+|-----------|----------|----------------|
+| `K8sWatchLoop` | `src/monitoring/watchloop.py` | Background polling; emits `ClusterEvent` |
+| `RuleEngine` | `src/aiops/rule_engine.py` | Event-to-playbook matching with filters |
+| `PlaybookRegistry` | `src/aiops/playbooks.py` | Library of 5 built-in remediation playbooks |
+| `PlaybookExecutor` | `src/aiops/playbooks.py` | Runs steps: LOW→immediate, MED/HIGH→approval gate |
+| `ApprovalManager` | `src/services/approval_manager.py` | Redis-backed human-in-the-loop gate |
+| `RCAEngine` | `src/aiops/rca_engine.py` | GPT-4o root cause analysis with structured output |
+| `LogAnalyzer` | `src/aiops/log_analyzer.py` | 14-pattern regex scan + AI enrichment |
+| `KubernetesHandler` | `src/services/kubernetes_handler.py` | NLP-to-kubectl command dispatch |
+| `KubernetesClient` | `src/k8s/client.py` | Async kubernetes-asyncio singleton |
+
+### Risk Level Routing
+
+```
+RiskLevel.LOW    → PlaybookExecutor calls MCP immediately, notifies user of output
+RiskLevel.MEDIUM → ApprovalManager: 🟠 posts approval request, pauses execution
+RiskLevel.HIGH   → ApprovalManager: 🔴 posts HIGH RISK warning, pauses execution
+```
+
+### Built-in Remediation Playbooks
+
+| Playbook | Trigger | Auto-runs | Requires Approval |
+|----------|---------|-----------|-------------------|
+| `crash_loop_remediation` | CrashLoopBackOff | Describe + logs | Pod restart |
+| `oom_kill_remediation` | OOMKilled | Describe | Memory patch (HIGH) |
+| `deployment_rollback` | 0 replicas | Rollout history | Rollback (HIGH) |
+| `node_not_ready_remediation` | NotReady node | Describe | Cordon (MED) + Drain (HIGH) |
+| `scale_up_on_load` | HPA maxReplicas | — | Scale (MED) |
+
+### Event Deduplication
+
+The watchloop tracks `_known_issues` (a dict keyed by `resource_kind/namespace/name`) to ensure each incident fires **exactly one alert**, regardless of poll frequency. When a resource recovers, its entry is removed and the next occurrence fires a fresh alert.
+
+```python
+# Example keys
+"pod/prod/nginx-abc"        # cleared when pod exits crash state
+"node/k3s-node-1"           # cleared when node becomes Ready
+"deployment/prod/api-svc"   # cleared when replicas > 0
+```
+
+→ For full sequence diagrams see [sequence-diagrams.md](./sequence-diagrams.md) (diagrams 7–11)  
+→ For complete AIOps docs see [aiops.md](./aiops.md)
+
+---
+
 ## Future Enhancements
 
 ### Planned Features
@@ -325,7 +411,6 @@ Provides HTTP endpoints for webhooks and monitoring.
 ## References
 
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Discord.py Guide](https://discordpy.readthedocs.io/)
 - [Python Telegram Bot](https://python-telegram-bot.readthedocs.io/)
 - [GitHub Models](https://github.com/marketplace/models)
 - [SQLAlchemy Async](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)

@@ -5,7 +5,6 @@ pydantic==2.5.3
 pydantic-settings==2.1.0
 
 # Channel Integrations
-discord.py==2.3.2
 python-telegram-bot[all]==20.7
 slack-sdk==3.27.1
 httpx==0.25.2
@@ -27,3 +26,11 @@ slowapi==0.1.9
 
 # Security
 cryptography==42.0.0
+
+# AIOps - Kubernetes async client
+kubernetes-asyncio==29.0.0
+
+# AIOps - Metrics & Monitoring
+aiohttp==3.9.3
+APScheduler==3.10.4
+prometheus-client==0.21.1

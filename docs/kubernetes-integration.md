@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI agent has full Kubernetes integration, allowing you to manage your Kubernetes clusters directly from Telegram, Discord, or Slack using both **slash commands** and **natural language queries** with intelligent status filtering.
+The AI agent has full Kubernetes integration, allowing you to manage your Kubernetes clusters directly from Telegram or Slack using both **slash commands** and **natural language queries** with intelligent status filtering.
 
 ## Features
 
@@ -449,7 +449,7 @@ backend-ghi789                    3/3     Running   0          12h       10.1.0.
 
 ```
 ┌─────────────────────────────────────────────────┐
-│         Telegram / Discord / Slack              │
+│              Telegram / Slack               │
 └───────────────────┬─────────────────────────────┘
                     │
             ┌───────▼────────┐

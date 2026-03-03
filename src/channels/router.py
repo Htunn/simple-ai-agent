@@ -6,7 +6,6 @@ from typing import Any, Optional
 import structlog
 
 from src.channels.base import ChannelAdapter, ChannelMessage
-from src.channels.discord_adapter import DiscordAdapter
 from src.channels.slack_adapter import SlackAdapter
 from src.channels.telegram_adapter import TelegramAdapter
 
@@ -78,13 +77,6 @@ class MessageRouter:
 def create_router() -> MessageRouter:
     """Create message router with available adapters."""
     router = MessageRouter()
-
-    # Register Discord adapter if token available
-    try:
-        discord_adapter = DiscordAdapter()
-        router.register_adapter(discord_adapter)
-    except Exception as e:
-        logger.warning("discord_adapter_not_registered", error=str(e))
 
     # Register Telegram adapter if token available
     try:

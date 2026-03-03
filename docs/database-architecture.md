@@ -19,7 +19,7 @@ PostgreSQL serves as the primary persistent storage for all user data, conversat
 ### Use Cases
 
 #### 1. User Management
-**Purpose**: Store user profiles across multiple channels (Discord, Telegram, Slack)
+**Purpose**: Store user profiles across multiple channels (Telegram, Slack)
 
 **Features**:
 - Cross-channel user identity management
@@ -198,13 +198,13 @@ Redis provides high-speed session caching and real-time data access with sub-mil
 **Data Structure**:
 ```redis
 # Session hash storing all session data
-HSET session:discord:user123 user_id "abc-def-123"
-HSET session:discord:user123 conversation_id "xyz-789"
-HSET session:discord:user123 model "gpt-4"
-HSET session:discord:user123 last_activity "2024-01-15T10:30:00Z"
+HSET session:telegram:user123 user_id "abc-def-123"
+HSET session:telegram:user123 conversation_id "xyz-789"
+HSET session:telegram:user123 model "gpt-4"
+HSET session:telegram:user123 last_activity "2024-01-15T10:30:00Z"
 
 # Auto-expire after 1 hour of inactivity
-EXPIRE session:discord:user123 3600
+EXPIRE session:telegram:user123 3600
 ```
 
 **Benefits**:
@@ -238,14 +238,14 @@ EXPIRE rate:ip:192.168.1.1:minute 60
 **Data Structure**:
 ```redis
 # Active users set per channel
-SADD active:discord "user123" "user456" "user789"
-EXPIRE active:discord 300
+SADD active:telegram "user123" "user456" "user789"
+EXPIRE active:telegram 300
 
 # Get active user count
-SCARD active:discord
+SCARD active:telegram
 
 # Check if user is active
-SISMEMBER active:discord "user123"
+SISMEMBER active:telegram "user123"
 ```
 
 **Benefits**:
@@ -277,7 +277,8 @@ EXPIRE context:conv:xyz 7200 # 2 hour TTL
 # Feature flags
 HSET features:global enable_mcp_security true
 HSET features:global max_conversation_length 100
-HSET features:channel:discord enable_slash_commands true
+HSET features:channel:telegram enable_notifications true
+HSET features:channel:slack enable_mentions true
 
 # A/B testing
 HSET ab_test:model_selection group:user123 "variant_a"

@@ -56,7 +56,6 @@ async def seed_initial_data():
 
         # Create default channel configs
         channels = [
-            ("discord", settings.default_model),
             ("telegram", settings.default_model),
         ]
 

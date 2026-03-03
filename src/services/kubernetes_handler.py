@@ -1,4 +1,4 @@
-"""Kubernetes MCP handler for managing clusters via Telegram/Discord/Slack."""
+"""Kubernetes MCP handler for managing clusters via Telegram/Slack."""
 
 import json
 import re

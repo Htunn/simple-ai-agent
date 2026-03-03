@@ -30,12 +30,6 @@ nano .env  # or use your preferred editor
    - Create fine-grained token with Models API access
    - Add to `.env`: `GITHUB_TOKEN=ghp_your_token_here`
 
-2. **Discord Token** (Optional):
-   - Go to: https://discord.com/developers/applications
-   - Create application → Add Bot
-   - Enable "Message Content Intent"
-   - Add to `.env`: `DISCORD_TOKEN=your_token_here`
-
 3. **Telegram Token** (Optional):
    - Message @BotFather on Telegram
    - Create bot with `/newbot`
@@ -75,11 +69,6 @@ python -m uvicorn src.main:app --reload
 
 ## Step 4: Test the Bot
 
-### Discord:
-1. Invite bot to your server
-2. Send a message: "Hello!"
-3. Try commands: `/help`, `/model gpt-4`, `/status`
-
 ### Telegram:
 1. Find your bot on Telegram
 2. Send `/start`
@@ -112,7 +101,6 @@ python scripts/init_db.py
 ### Bot not responding:
 1. Check tokens in `.env`
 2. View logs: `docker-compose logs app`
-3. Verify intents enabled (Discord)
 
 ## Next Steps
 

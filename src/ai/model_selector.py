@@ -38,7 +38,7 @@ class ModelSelector:
         Args:
             user_id: User ID
             conversation_id: Conversation ID
-            channel_type: Channel type (discord, telegram, whatsapp)
+            channel_type: Channel type (telegram, slack)
 
         Returns:
             Selected model name

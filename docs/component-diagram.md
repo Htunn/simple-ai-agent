@@ -7,14 +7,14 @@ This diagram shows the high-level components of the Simple AI Agent system and t
 ```mermaid
 flowchart TB
     subgraph External["External Services"]
-        Discord["Discord Platform"]
         Telegram["Telegram Platform"]
+        Slack["Slack Platform"]
         GitHub["GitHub Models API"]
     end
 
     subgraph Presentation["Presentation Layer"]
-        DA["Discord Adapter"]
         TA["Telegram Adapter"]
+        SA["Slack Adapter"]
         Router["Message Router"]
     end
 
@@ -52,13 +52,13 @@ flowchart TB
     end
 
     %% External to Presentation
-    Discord -->|Messages| DA
     Telegram -->|Updates| TA
+    Slack -->|Events| SA
     GitHub -->|AI Responses| GHClient
 
     %% Presentation Layer
-    DA -->|ChannelMessage| Router
     TA -->|ChannelMessage| Router
+    SA -->|ChannelMessage| Router
     Router -->|Route| MH
 
     %% Application Layer
@@ -89,16 +89,17 @@ flowchart TB
 
     %% API Layer
     Webhooks -->|Telegram Updates| TA
+    Webhooks -->|Slack Events| SA
     Health -->|Check| PG
     Health -->|Check| Redis
     FastAPI -->|Serve| Health
     FastAPI -->|Serve| Webhooks
 
     %% Response Flow
-    Router -->|Send Response| DA
     Router -->|Send Response| TA
-    DA -->|Reply| Discord
+    Router -->|Send Response| SA
     TA -->|Reply| Telegram
+    SA -->|Reply| Slack
 
     %% Styling
     classDef external fill:#e1f5ff,stroke:#01579b,stroke-width:2px
@@ -108,8 +109,8 @@ flowchart TB
     classDef infrastructure fill:#fce4ec,stroke:#880e4f,stroke-width:2px
     classDef api fill:#fff9c4,stroke:#f57f17,stroke-width:2px
 
-    class Discord,Telegram,GitHub external
-    class DA,TA,Router presentation
+    class Telegram,Slack,GitHub external
+    class TA,SA,Router presentation
     class MH,SM application
     class GHClient,MS,CB,PM domain
     class PG,Redis,UR,CR,MR,CCR infrastructure
@@ -120,14 +121,14 @@ flowchart TB
 
 ### External Services
 
-- **Discord Platform**: Discord messaging service
 - **Telegram Platform**: Telegram messaging service
+- **Slack Platform**: Slack messaging service
 - **GitHub Models API**: AI model inference API (GPT-4, Claude, Llama)
 
 ### Presentation Layer
 
-- **Discord Adapter**: Handles Discord bot protocol and message conversion
 - **Telegram Adapter**: Handles Telegram bot protocol and message conversion
+- **Slack Adapter**: Handles Slack Events API and message conversion
 - **Message Router**: Routes messages between channels and message handler
 
 ### Application Layer
@@ -161,7 +162,7 @@ flowchart TB
 
 ### 1. Message Ingestion (Push)
 ```
-Discord/Telegram → Adapter → Router → Message Handler
+Telegram/Slack → Adapter → Router → Message Handler
 ```
 
 ### 2. Message Processing
@@ -174,7 +175,7 @@ Message Handler → GitHub Client → External API
 
 ### 3. Response Delivery
 ```
-Message Handler → Router → Adapter → Discord/Telegram
+Message Handler → Router → Adapter → Telegram/Slack
 ```
 
 ### 4. Session Caching
@@ -187,7 +188,7 @@ Session Manager → Repositories → PostgreSQL (slow path)
 
 | Layer | Technology |
 |-------|------------|
-| Channels | discord.py, python-telegram-bot |
+| Channels | python-telegram-bot, slack-bolt |
 | Application | Python 3.12 (asyncio) |
 | AI Integration | OpenAI SDK (GitHub Models) |
 | Web Framework | FastAPI, Uvicorn |
@@ -228,7 +229,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph Untrusted["Untrusted Zone"]
-        Users["Discord/Telegram Users"]
+        Users["Telegram/Slack Users"]
     end
     
     subgraph DMZ["DMZ"]

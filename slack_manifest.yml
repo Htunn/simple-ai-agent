@@ -1,0 +1,43 @@
+_metadata:
+  major_version: 2
+
+display_information:
+  name: Simple AI Agent
+  description: >-
+    AI-powered assistant with Kubernetes management, AIOps automation,
+    and multi-model LLM support (GPT-4o, Claude, Llama).
+  background_color: "#1a1a2e"
+
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: simple-ai-agent
+    always_online: true
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read      # Receive events when bot is @mentioned
+      - chat:write             # Send messages as the bot
+      - im:history             # Read messages in direct message threads
+      - im:write               # Open direct message channels with users
+      - users:read             # Retrieve user profile information
+      - channels:history       # Read messages in public channels the bot belongs to
+      - groups:history         # Read messages in private channels the bot belongs to
+
+settings:
+  event_subscriptions:
+    # Replace with your actual deployment URL before creating the app.
+    # After creating, verify the URL in the App Manifest settings page.
+    request_url: https://YOUR-DOMAIN/api/webhook/slack
+    bot_events:
+      - app_mention            # Bot is @mentioned in any channel
+      - message.im             # User sends a direct message to the bot
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

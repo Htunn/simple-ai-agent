@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     # GitHub Models API
     github_token: str = Field(..., description="GitHub fine-grained personal access token")
 
-    # Discord Bot
-    discord_token: str | None = Field(None, description="Discord bot token")
 
     # Telegram Bot
     telegram_token: str | None = Field(None, description="Telegram bot token")
@@ -38,7 +36,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     database_url: str = Field(
-        default="postgresql+asyncpg://clawbot:clawbot_password@localhost:5432/clawbot",
+        default="postgresql+asyncpg://aiagent:aiagent_password@localhost:5432/aiagent",
         description="PostgreSQL database URL",
     )
 
@@ -71,6 +69,26 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     rate_limit_per_minute: int = Field(default=60, description="Rate limit per minute")
+
+    # AIOps - Monitoring
+    prometheus_url: str | None = Field(None, description="Prometheus server URL (e.g. http://prometheus:9090)")
+    grafana_url: str | None = Field(None, description="Grafana server URL")
+    grafana_api_key: str | None = Field(None, description="Grafana API key for annotations")
+
+    # AIOps - Watchloop
+    k8s_watchloop_interval: int = Field(default=30, description="Watchloop poll interval in seconds")
+    k8s_watchloop_enabled: bool = Field(default=True, description="Enable K8s watchloop background task")
+
+    # AIOps - Remediation
+    auto_remediation_enabled: bool = Field(default=False, description="Enable fully automatic remediation (no approval)")
+    aiops_notification_channel: str | None = Field(None, description="Channel ID/name for AIOps alerts")
+    alertmanager_webhook_secret: str | None = Field(None, description="Alertmanager webhook secret for validation")
+
+    # Telegram webhook secret (set via setWebhook secret_token param)
+    telegram_webhook_secret: str | None = Field(None, description="Telegram bot API webhook secret token for request verification")
+
+    # AIOps - Approval gate
+    approval_timeout_seconds: int = Field(default=300, description="Seconds before pending approval auto-cancels")
 
 
 @lru_cache()

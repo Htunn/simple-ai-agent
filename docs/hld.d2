@@ -1,0 +1,383 @@
+##############################################################################
+# Simple AI Agent — High-Level Design (HLD)
+# Traffic-flow diagram in D2 notation
+# Render: d2 docs/hld.d2 docs/hld.svg  or  d2 docs/hld.d2 docs/hld.png
+##############################################################################
+
+direction: right
+
+###############################################################################
+# ── External Actors ──────────────────────────────────────────────────────────
+###############################################################################
+
+users: "End Users" {
+  shape: person
+  style.fill: "#e8f4fd"
+  style.stroke: "#1a73e8"
+}
+
+telegram_platform: "Telegram Platform" {
+  shape: rectangle
+  style.fill: "#229ed9"
+  style.font-color: white
+  style.stroke: "#1a7db5"
+}
+
+slack_platform: "Slack Platform" {
+  shape: rectangle
+  style.fill: "#4a154b"
+  style.font-color: white
+  style.stroke: "#3a1038"
+}
+
+github_models: "GitHub Models API" {
+  shape: rectangle
+  style.fill: "#238636"
+  style.font-color: white
+  style.stroke: "#1a6e2e"
+  tooltip: "GPT-4, Claude-3 Opus, Llama-3-70B"
+}
+
+k8s_cluster: "Kubernetes Cluster" {
+  shape: rectangle
+  style.fill: "#326ce5"
+  style.font-color: white
+  style.stroke: "#2152b5"
+}
+
+mcp_port_checker: "SimplePortChecker MCP\n(SSE / HTTPS)" {
+  shape: rectangle
+  style.fill: "#ff6b35"
+  style.font-color: white
+  style.stroke: "#cc5629"
+  tooltip: "scan_ports, analyze_certificate, detect_l7_protection, …"
+}
+
+alertmanager_ext: "Prometheus Alertmanager" {
+  shape: rectangle
+  style.fill: "#e6522c"
+  style.font-color: white
+  style.stroke: "#b33d1f"
+}
+
+###############################################################################
+# ── Simple AI Agent Application (Docker / k8s Pod) ──────────────────────────
+###############################################################################
+
+app: "Simple AI Agent\n(FastAPI + uvicorn)" {
+  style.fill: "#f8f9fa"
+  style.stroke: "#dee2e6"
+
+  ###########################################################################
+  # Channel Layer
+  ###########################################################################
+  channel_layer: "Channel Adapters" {
+    style.fill: "#e3f2fd"
+    style.stroke: "#90caf9"
+
+    telegram_adapter: "Telegram Adapter\n(python-telegram-bot)" {
+      shape: rectangle
+      style.fill: "#c5cae9"
+    }
+    slack_adapter: "Slack Adapter\n(slack_bolt)" {
+      shape: rectangle
+      style.fill: "#c5cae9"
+    }
+    channel_router: "Channel Router\n(fan-out / fan-in)" {
+      shape: rectangle
+      style.fill: "#9fa8da"
+    }
+
+    telegram_adapter -> channel_router: "inbound msg"
+    slack_adapter -> channel_router: "inbound msg"
+  }
+
+  ###########################################################################
+  # API Layer
+  ###########################################################################
+  api_layer: "API Layer (FastAPI)" {
+    style.fill: "#e8f5e9"
+    style.stroke: "#a5d6a7"
+
+    health_endpoint: "GET /health\nGET /ready" {
+      shape: rectangle
+      style.fill: "#c8e6c9"
+    }
+    webhook_endpoints: "POST /api/webhook/{slack,telegram}" {
+      shape: rectangle
+      style.fill: "#c8e6c9"
+    }
+    alertmanager_hook: "POST /api/alert/webhook\n(Alertmanager ingest)" {
+      shape: rectangle
+      style.fill: "#c8e6c9"
+    }
+    rate_limiter: "Rate Limiter\n(slowapi)" {
+      shape: rectangle
+      style.fill: "#a5d6a7"
+    }
+
+    webhook_endpoints -> rate_limiter: "check limit"
+  }
+
+  ###########################################################################
+  # Business Logic Layer
+  ###########################################################################
+  business_layer: "Business Logic" {
+    style.fill: "#fff8e1"
+    style.stroke: "#ffe082"
+
+    message_handler: "Message Handler" {
+      shape: rectangle
+      style.fill: "#fff176"
+      tooltip: "Intent detection, routing to AI / K8s / Security tools"
+    }
+    session_manager: "Session Manager\n(TTL-based)" {
+      shape: rectangle
+      style.fill: "#fff59d"
+    }
+    k8s_handler: "Kubernetes Handler\n(NL query parser)" {
+      shape: rectangle
+      style.fill: "#fff59d"
+    }
+    approval_manager: "Approval Manager\n(Human-in-the-loop)" {
+      shape: rectangle
+      style.fill: "#ffcc02"
+      tooltip: "LOW=auto  MEDIUM=approve  HIGH=warn+approve  TTL=5min"
+    }
+  }
+
+  ###########################################################################
+  # AI Layer
+  ###########################################################################
+  ai_layer: "AI / LLM Layer" {
+    style.fill: "#fce4ec"
+    style.stroke: "#f48fb1"
+
+    github_client: "GitHub Models Client\n(openai SDK)" {
+      shape: rectangle
+      style.fill: "#f8bbd0"
+    }
+    model_selector: "Model Selector\n(per-user / per-channel)" {
+      shape: rectangle
+      style.fill: "#f8bbd0"
+    }
+    context_builder: "Context Builder\n(conversation window)" {
+      shape: rectangle
+      style.fill: "#f8bbd0"
+    }
+    prompt_manager: "Prompt Manager\n(system prompts)" {
+      shape: rectangle
+      style.fill: "#f8bbd0"
+    }
+
+    github_client -> model_selector: "select model"
+    context_builder -> github_client: "messages[]"
+    prompt_manager -> context_builder: "system prompt"
+  }
+
+  ###########################################################################
+  # MCP Layer
+  ###########################################################################
+  mcp_layer: "MCP Layer (Model Context Protocol)" {
+    style.fill: "#f3e5f5"
+    style.stroke: "#ce93d8"
+
+    mcp_manager: "MCP Manager\n(lifecycle + routing)" {
+      shape: rectangle
+      style.fill: "#e1bee7"
+    }
+    stdio_transport: "stdio Transport\n(subprocess)" {
+      shape: rectangle
+      style.fill: "#e1bee7"
+      tooltip: "K8s MCP server — scripts/mcp_server.py"
+    }
+    sse_transport: "SSE Transport\n(HTTP client)" {
+      shape: rectangle
+      style.fill: "#e1bee7"
+      tooltip: "SimplePortChecker — https://mcp.simpleportchecker.com/mcp"
+    }
+    tool_registry: "Tool Registry\n(tool → server map)" {
+      shape: rectangle
+      style.fill: "#ce93d8"
+    }
+
+    mcp_manager -> stdio_transport: "dispatch"
+    mcp_manager -> sse_transport: "dispatch"
+    mcp_manager -> tool_registry: "lookup"
+  }
+
+  ###########################################################################
+  # AIOps Layer
+  ###########################################################################
+  aiops_layer: "AIOps Engine" {
+    style.fill: "#e8eaf6"
+    style.stroke: "#9fa8da"
+
+    watchloop: "K8s Watch-Loop\n(background task)" {
+      shape: rectangle
+      style.fill: "#c5cae9"
+      tooltip: "Polls every 30s — CrashLoopBackOff, NotReady, OOMKill"
+    }
+    rule_engine: "Rule Engine\n(YAML rules)" {
+      shape: rectangle
+      style.fill: "#c5cae9"
+    }
+    playbook_executor: "Playbook Executor\n(step sequencer)" {
+      shape: rectangle
+      style.fill: "#c5cae9"
+      tooltip: "Runs playbook steps; routes HIGH-risk via ApprovalManager"
+    }
+    rca_engine: "RCA Engine\n(AI-powered analysis)" {
+      shape: rectangle
+      style.fill: "#9fa8da"
+      tooltip: "LLM SRE prompt — root_cause, confidence, failure_pattern"
+    }
+    log_analyzer: "Log Analyzer" {
+      shape: rectangle
+      style.fill: "#c5cae9"
+    }
+
+    watchloop -> rule_engine: "cluster events"
+    rule_engine -> playbook_executor: "matched rules"
+    playbook_executor -> rca_engine: "incident context"
+  }
+
+  ###########################################################################
+  # Data Layer
+  ###########################################################################
+  data_layer: "Data Layer" {
+    style.fill: "#e0f2f1"
+    style.stroke: "#80cbc4"
+
+    postgres: "PostgreSQL 16\n(users, convos, messages)" {
+      shape: cylinder
+      style.fill: "#b2dfdb"
+      tooltip: "ACID | JSONB metadata | Alembic migrations"
+    }
+    redis: "Redis 7\n(sessions, approvals)" {
+      shape: cylinder
+      style.fill: "#b2dfdb"
+      tooltip: "Sub-ms session access | TTL-based expiry | AOF persistence"
+    }
+  }
+
+  ###########################################################################
+  # Monitoring Layer
+  ###########################################################################
+  monitoring_layer: "Observability" {
+    style.fill: "#fff3e0"
+    style.stroke: "#ffcc80"
+
+    prometheus_client: "Prometheus Client\n(/metrics)" {
+      shape: rectangle
+      style.fill: "#ffe0b2"
+    }
+    structlog: "Structured Logging\n(structlog + JSON)" {
+      shape: rectangle
+      style.fill: "#ffe0b2"
+    }
+  }
+}
+
+###############################################################################
+# ── Observability Stack (separate containers) ─────────────────────────────────
+###############################################################################
+
+obs_stack: "Observability Stack" {
+  style.fill: "#fff3e0"
+  style.stroke: "#fb8c00"
+
+  prometheus_server: "Prometheus" {
+    shape: cylinder
+    style.fill: "#ff8a65"
+    style.font-color: white
+  }
+  grafana: "Grafana\n(dashboards)" {
+    shape: rectangle
+    style.fill: "#f4511e"
+    style.font-color: white
+  }
+  alertmanager: "Alertmanager\n(routing + silence)" {
+    shape: rectangle
+    style.fill: "#e64a19"
+    style.font-color: white
+  }
+
+  prometheus_server -> grafana: "query (PromQL)"
+  prometheus_server -> alertmanager: "fire alerts"
+}
+
+###############################################################################
+# ── Traffic flows ─────────────────────────────────────────────────────────────
+###############################################################################
+
+# ── User → Channels ──────────────────────────────────────────────────────────
+users -> telegram_platform: "chat message\n(long-poll / webhook)"
+users -> slack_platform: "chat message\n(Events API)"
+
+# ── Channels → Adapters ───────────────────────────────────────────────────────
+telegram_platform -> app.api_layer.webhook_endpoints: "POST /api/webhook/telegram"
+slack_platform -> app.api_layer.webhook_endpoints: "POST /api/webhook/slack"
+
+# ── Webhook → Rate-limiter → Router ──────────────────────────────────────────
+app.api_layer.webhook_endpoints -> app.channel_layer.channel_router: "normalised message"
+
+# ── Router → Message Handler ──────────────────────────────────────────────────
+app.channel_layer.channel_router -> app.business_layer.message_handler: "Message object"
+
+# ── Message Handler → Session Manager ────────────────────────────────────────
+app.business_layer.message_handler -> app.business_layer.session_manager: "load session"
+app.business_layer.session_manager -> app.data_layer.redis: "GET/SET session TTL"
+
+# ── Message Handler → AI Flow ─────────────────────────────────────────────────
+app.business_layer.message_handler -> app.ai_layer.context_builder: "user message + history"
+app.ai_layer.context_builder -> app.data_layer.postgres: "load conversation history"
+app.ai_layer.context_builder -> app.ai_layer.github_client: "messages[]"
+app.ai_layer.github_client -> github_models: "POST /chat/completions\n(openai-compat)"
+github_models -> app.ai_layer.github_client: "tokens + response"
+
+# ── Message Handler → K8s Flow ───────────────────────────────────────────────
+app.business_layer.message_handler -> app.business_layer.k8s_handler: "/k8s cmd or NL query"
+app.business_layer.k8s_handler -> app.mcp_layer.mcp_manager: "call k8s_* tool"
+app.mcp_layer.mcp_manager -> app.mcp_layer.stdio_transport: "JSON-RPC 2.0"
+app.mcp_layer.stdio_transport -> k8s_cluster: "kubectl (subprocess)"
+k8s_cluster -> app.mcp_layer.stdio_transport: "YAML / JSON output"
+
+# ── Message Handler → Security Flow ──────────────────────────────────────────
+app.business_layer.message_handler -> app.mcp_layer.mcp_manager: "security tool intent"
+app.mcp_layer.mcp_manager -> app.mcp_layer.sse_transport: "JSON-RPC over SSE"
+app.mcp_layer.sse_transport -> mcp_port_checker: "HTTPS POST + SSE stream"
+mcp_port_checker -> app.mcp_layer.sse_transport: "SSE events → result"
+
+# ── Response back to user ─────────────────────────────────────────────────────
+app.business_layer.message_handler -> app.channel_layer.channel_router: "formatted response"
+app.channel_layer.channel_router -> app.channel_layer.telegram_adapter: "send"
+app.channel_layer.channel_router -> app.channel_layer.slack_adapter: "send"
+app.channel_layer.telegram_adapter -> telegram_platform: "Bot API"
+app.channel_layer.slack_adapter -> slack_platform: "Web API"
+
+# ── AIOps Flows ───────────────────────────────────────────────────────────────
+app.aiops_layer.watchloop -> k8s_cluster: "list pods/nodes/deployments\n(every 30 s)"
+k8s_cluster -> app.aiops_layer.watchloop: "resource state"
+app.aiops_layer.watchloop -> app.aiops_layer.rule_engine: "ClusterEvent"
+app.aiops_layer.rule_engine -> app.aiops_layer.playbook_executor: "matched playbook IDs"
+app.aiops_layer.playbook_executor -> app.business_layer.approval_manager: "HIGH / MEDIUM risk step"
+app.business_layer.approval_manager -> app.data_layer.redis: "store PendingApproval (TTL 5m)"
+app.business_layer.approval_manager -> app.channel_layer.channel_router: "approval request msg"
+app.aiops_layer.playbook_executor -> app.mcp_layer.mcp_manager: "LOW risk tool call"
+app.aiops_layer.rca_engine -> app.ai_layer.github_client: "RCA prompt + incident ctx"
+
+# ── Alertmanager → App ────────────────────────────────────────────────────────
+alertmanager_ext -> app.api_layer.alertmanager_hook: "POST /api/alert/webhook\n(webhook receiver)"
+app.api_layer.alertmanager_hook -> app.aiops_layer.rule_engine: "normalised alert"
+
+# ── Observability ─────────────────────────────────────────────────────────────
+app.monitoring_layer.prometheus_client -> obs_stack.prometheus_server: "scrape /metrics (15s)"
+obs_stack.alertmanager -> alertmanager_ext: "route grouped alerts"
+app.monitoring_layer.structlog -> obs_stack: "JSON logs (stdout → log driver)"
+
+# ── DB persistence ────────────────────────────────────────────────────────────
+app.business_layer.message_handler -> app.data_layer.postgres: "INSERT message / conversation"
+app.data_layer.postgres -> app.data_layer.redis: "session cache warm-up" {
+  style.stroke-dash: 5
+}
