@@ -45,8 +45,14 @@ async def telegram_webhook(
         # Get request body
         body = await request.json()
 
-        # TODO: Implement signature verification when webhook secret is configured
-        # For now, accept all requests in development
+        # Verify X-Telegram-Bot-Api-Secret-Token if a secret is configured.
+        # Set the same token via setWebhook(secret_token=...) when registering the URL.
+        _settings = get_settings()
+        if _settings.telegram_webhook_secret:
+            received_token = x_telegram_bot_api_secret_token or ""
+            if not hmac.compare_digest(_settings.telegram_webhook_secret, received_token):
+                logger.warning("telegram_webhook_invalid_secret")
+                raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
         # Get Telegram adapter
         telegram_adapter = message_router.get_adapter("telegram")
@@ -275,4 +281,4 @@ async def alertmanager_webhook(
         except Exception as e:
             logger.error("alertmanager_notification_error", error=str(e))
 
-    return {"status": "ok", "processed": processed}
+    return {"status": "ok", "processed": processed, "alerts_ingested": processed}

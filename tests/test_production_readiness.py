@@ -22,7 +22,7 @@ import sys
 import time
 import traceback
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -290,7 +290,7 @@ async def test_alertmanager_webhook(client: httpx.AsyncClient) -> None:
                     "pod": "test-pod-abc",
                 },
                 "annotations": {"summary": "Test CrashLoop", "description": "Pod is crash looping"},
-                "startsAt": datetime.utcnow().isoformat() + "Z",
+                "startsAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "endsAt": "0001-01-01T00:00:00Z",
                 "generatorURL": "http://prometheus:9090/graph",
             }
@@ -303,8 +303,9 @@ async def test_alertmanager_webhook(client: httpx.AsyncClient) -> None:
             json=alert_payload,
         )
         data = r.json()
+        ingested = data.get("alerts_ingested", data.get("processed", "?"))
         record("POST /api/webhook/alertmanager (firing)", r.status_code == 200,
-               detail=f"status={data.get('status')}, alerts_ingested={data.get('alerts_ingested', '?')}")
+               detail=f"status={data.get('status')}, alerts_ingested={ingested}")
     except Exception as e:
         record("POST /api/webhook/alertmanager (firing)", False, error=str(e))
 
@@ -313,7 +314,7 @@ async def test_alertmanager_webhook(client: httpx.AsyncClient) -> None:
         resolved = dict(alert_payload)
         resolved["status"] = "resolved"
         resolved["alerts"] = [dict(alert_payload["alerts"][0], status="resolved",
-                                    endsAt=datetime.utcnow().isoformat() + "Z")]
+                                    endsAt=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))]
         r2 = await client.post("/api/webhook/alertmanager", json=resolved)
         record("POST /api/webhook/alertmanager (resolved)", r2.status_code == 200,
                detail=f"status={r2.json().get('status')}")
@@ -407,8 +408,9 @@ async def test_aiops(client: httpx.AsyncClient) -> None:
             ["docker", "exec", "simple-ai-agent", "python", "-c", """
 from src.aiops.rule_engine import RuleEngine
 re = RuleEngine()
+# Use the canonical event_type value matching RuleCondition.CRASH_LOOP ('crash_loop')
 event = {
-    "event_type": "pod_crash_loop",
+    "event_type": "crash_loop",
     "severity": "critical",
     "resource_kind": "Pod",
     "resource_name": "bad-pod",
@@ -417,6 +419,7 @@ event = {
     "restart_count": 5,
 }
 matches = re.evaluate(event)
+assert len(matches) > 0, f"Expected at least 1 rule match but got 0 (default rules not loaded?)"
 print(f"matches={len(matches)}")
 """],
             capture_output=True, text=True, timeout=20,
@@ -660,6 +663,88 @@ async def test_security(client: httpx.AsyncClient) -> None:
     except Exception as e:
         record("Method not allowed", False, error=str(e))
 
+    # Security: no default credentials exposed in error pages
+    try:
+        r = await client.get("/api/nonexistent/route/xyz")
+        body_lower = r.text.lower()
+        leaked = any(kw in body_lower for kw in ("password", "secret", "token", "traceback", "sqlalchemy"))
+        record("404 body leaks no secrets/traceback", not leaked,
+               detail=f"HTTP {r.status_code}, leaked={leaked}")
+    except Exception as e:
+        record("404 body secret leak check", False, error=str(e))
+
+    # Security: Telegram webhook rejects requests without secret (when TELEGRAM_WEBHOOK_SECRET is set)
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "simple-ai-agent", "printenv", "TELEGRAM_WEBHOOK_SECRET"],
+            capture_output=True, text=True, timeout=5,
+        )
+        tg_secret = result.stdout.strip()
+        if tg_secret:
+            r = await client.post(
+                "/api/webhook/telegram",
+                json={"update_id": 1},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "wrong-secret"},
+            )
+            record("Telegram webhook invalid secret → 403", r.status_code == 403,
+                   detail=f"HTTP {r.status_code}")
+        else:
+            record("Telegram webhook auth", True,
+                   detail="TELEGRAM_WEBHOOK_SECRET not set — verification skipped (add to .env to enable)")
+    except Exception as e:
+        record("Telegram webhook auth check", False, error=str(e))
+
+    # Security: Alertmanager webhook rejects bad HMAC secret (when configured)
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "simple-ai-agent", "printenv", "ALERTMANAGER_WEBHOOK_SECRET"],
+            capture_output=True, text=True, timeout=5,
+        )
+        am_secret = result.stdout.strip()
+        if am_secret:
+            r = await client.post(
+                "/api/webhook/alertmanager",
+                json={"alerts": [], "status": "firing"},
+                headers={"X-Alertmanager-Secret": "wrong-hmac"},
+            )
+            record("Alertmanager webhook invalid secret → 403", r.status_code == 403,
+                   detail=f"HTTP {r.status_code}")
+        else:
+            record("Alertmanager webhook auth", True,
+                   detail="ALERTMANAGER_WEBHOOK_SECRET not set — set in .env to enable HMAC validation")
+    except Exception as e:
+        record("Alertmanager webhook auth check", False, error=str(e))
+
+    # Security: check Redis/Postgres are NOT listening on 0.0.0.0 from outside Docker
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "--format",
+             "{{range .NetworkSettings.Ports}}{{.}}{{end}}",
+             "simple-ai-agent-redis"],
+            capture_output=True, text=True, timeout=10,
+        )
+        bindings = result.stdout
+        # HostIP should be 127.0.0.1 not 0.0.0.0
+        exposed_all = "0.0.0.0" in bindings
+        record("Redis port NOT bound to 0.0.0.0", not exposed_all,
+               detail=f"bindings: {bindings.strip()[:80]}")
+    except Exception as e:
+        record("Redis port binding check", False, error=str(e))
+
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "--format",
+             "{{range .NetworkSettings.Ports}}{{.}}{{end}}",
+             "simple-ai-agent-postgres"],
+            capture_output=True, text=True, timeout=10,
+        )
+        bindings = result.stdout
+        exposed_all = "0.0.0.0" in bindings
+        record("PostgreSQL port NOT bound to 0.0.0.0", not exposed_all,
+               detail=f"bindings: {bindings.strip()[:80]}")
+    except Exception as e:
+        record("PostgreSQL port binding check", False, error=str(e))
+
 
 async def test_observability(client: httpx.AsyncClient) -> None:
     section("14 · Observability")
@@ -717,7 +802,7 @@ async def main() -> int:
     print("\n" + "═" * 60)
     print("  Simple AI Agent — Production Readiness Test Suite")
     print(f"  Target: {BASE_URL}")
-    print(f"  Time:   {datetime.utcnow().isoformat()} UTC")
+    print(f"  Time:   {datetime.now(timezone.utc).isoformat()} UTC")
     print("═" * 60)
 
     async with httpx.AsyncClient(

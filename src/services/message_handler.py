@@ -82,26 +82,44 @@ class MessageHandler:
         # For pods, show key information in a compact format
         if resource_type == "pods":
             formatted = []
+            # Detect --all-namespaces output: first column header is NAMESPACE
+            has_ns_col = header_line.strip().upper().startswith("NAMESPACE")
             for line in data_lines:
                 parts = line.split()
-                if len(parts) >= 5:
-                    name = parts[0]
-                    ready = parts[1]
-                    status = parts[2]
-                    restarts = parts[3]
-                    age = parts[4]
-                    
+                min_cols = 6 if has_ns_col else 5
+                if len(parts) >= min_cols:
+                    if has_ns_col:
+                        ns       = parts[0]
+                        name     = parts[1]
+                        ready    = parts[2]
+                        status   = parts[3]
+                        restarts = parts[4]
+                        age      = parts[5]
+                    else:
+                        ns       = None
+                        name     = parts[0]
+                        ready    = parts[1]
+                        status   = parts[2]
+                        restarts = parts[3]
+                        age      = parts[4]
+
                     # Status emoji
                     status_emoji = "✅" if status == "Running" and "/" in ready else "⚠️"
-                    if status in ["CrashLoopBackOff", "Error", "ImagePullBackOff"]:
+                    if status in ["CrashLoopBackOff", "Error", "ImagePullBackOff", "ErrImagePull"]:
                         status_emoji = "❌"
                     elif status in ["Pending", "ContainerCreating"]:
                         status_emoji = "⏳"
                     elif status == "Completed":
                         status_emoji = "✔️"
-                    
-                    formatted.append(f"{status_emoji} **{name}**\n   Status: {status} | Ready: {ready} | Restarts: {restarts} | Age: {age}")
-            
+                    elif status == "OOMKilled":
+                        status_emoji = "💥"
+
+                    name_label = f"`{ns}/{name}`" if ns else f"**{name}**"
+                    formatted.append(
+                        f"{status_emoji} {name_label}\n"
+                        f"   Status: {status} | Ready: {ready} | Restarts: {restarts} | Age: {age}"
+                    )
+
             return "\n\n".join(formatted) if formatted else "No resources found"
         
         # For nodes, show compact format
@@ -441,6 +459,20 @@ class MessageHandler:
                         "• `/k8s scale <name> <count> [namespace]`"
                     )
 
+            # ── Self-healing: fix / clean up / remediate error pods ────────────
+            # Catch BEFORE the generic pod-listing block so "fix these pods"
+            # doesn't fall through to list logic.
+            elif any(
+                kw in query_lower
+                for kw in (
+                    'fix ', 'fix these', 'fix the', 'fix error', 'fix issue',
+                    'fix pod', 'fix crash', 'fix oom', 'clean up pod', 'cleanup pod',
+                    'clean pod', 'remediat', 'delete error', 'delete failed',
+                    'remove error', 'remove failed', 'resolve pod',
+                )
+            ):
+                response = await self._fix_problem_pods(namespace)
+
             # List pods
             elif any(word in query_lower for word in ['pod', 'pods', 'container', 'containers']):
                 if 'log' in query_lower:
@@ -503,7 +535,7 @@ class MessageHandler:
                                     
                                 if status_filter == "problem":
                                     # Show pods that are not Running or Completed
-                                    if any(status in line for status in ['Error', 'CrashLoopBackOff', 'ImagePullBackOff', 'Pending', 'Failed', 'Unknown', 'Terminating', 'ContainerCreating']):
+                                    if any(status in line for status in ['Error', 'CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'Pending', 'Failed', 'Unknown', 'Terminating', 'ContainerCreating', 'OOMKilled']):
                                         filtered_lines.append(line)
                                     # Also check for Running pods with restarts
                                     elif 'Running' in line:
@@ -584,9 +616,15 @@ class MessageHandler:
                             if problem_lines:
                                 _filt = '\n'.join([header] + problem_lines)
                                 formatted_output = self._format_kubectl_table(_filt, "pods")
+                                _fix_hint = (
+                                    f"\n\n💡 _Type **`fix pods`** or **`!k8s fix`**"
+                                    + (f" (or `!k8s fix {namespace}`)" if namespace else "")
+                                    + " to auto-remediate Error/CrashLoop/OOMKilled pods._"
+                                )
                                 response = (
                                     f"⚠️ **Problem pods{ns_label}** "
-                                    f"({len(problem_lines)} issue(s), {healthy_count} healthy):\n\n{formatted_output}"
+                                    f"({len(problem_lines)} issue(s), {healthy_count} healthy):\n\n"
+                                    f"{formatted_output}{_fix_hint}"
                                 )
                             else:
                                 response = f"✅ All {healthy_count} pod(s){ns_label} are healthy."
@@ -769,6 +807,11 @@ class MessageHandler:
                 else:
                     response = f"❌ Error: {output}"
 
+            # ── Explicit "fix" / "remediate" without pod/crash keyword ───────
+            # e.g. "fix the cluster" / "clean up failed resources"
+            elif any(kw in query_lower for kw in ('fix', 'clean', 'remediat', 'repair')):
+                response = await self._fix_problem_pods(namespace)
+
             # Default: show help
             else:
                 response = (
@@ -778,9 +821,12 @@ class MessageHandler:
                     "• _show pods in pos-order4u namespace_\n"
                     "• _scale down superadmin-frontend to 1 replica_\n"
                     "• _restart pod nginx-abc123_\n"
-                    "• _show error pods_\n\n"
+                    "• _show error pods_\n"
+                    "• _fix these issue pods_ — auto-remediate crashloop/error pods\n"
+                    "• _fix pods in velero namespace_\n\n"
                     "*Explicit commands (Slack — use `!` instead of `/`):*\n"
                     "• `!k8s pods [namespace]`\n"
+                    "• `!k8s fix [namespace]` — auto-remediate error pods\n"
                     "• `!k8s deployments [namespace]`\n"
                     "• `!k8s scale <name> <replicas> [namespace]`\n"
                     "• `!k8s logs <pod> [namespace]`\n"
@@ -1086,6 +1132,8 @@ Tokens: {stats['total_tokens']}"""
 Pod Management:
 • /k8s pods - List all pods
 • /k8s pods <namespace> - List pods in namespace
+• /k8s fix - Auto-remediate Error/CrashLoop/OOMKilled pods (all namespaces)
+• /k8s fix <namespace> - Fix problem pods in a specific namespace
 • /k8s describe pod <name> [namespace] - Get pod details
 • /k8s logs <pod-name> [namespace] - Get pod logs
 • /k8s top pods - Show pod resource usage
@@ -1317,12 +1365,157 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 else:
                     return f"❌ Error viewing config: {output}"
             
+            elif subcommand == "fix":
+                # /k8s fix [namespace]  — auto-remediate error/crash/failed pods
+                fix_ns = args[1] if len(args) > 1 else None
+                return await self._fix_problem_pods(fix_ns)
+
             else:
                 return f"❌ Unknown Kubernetes command: {subcommand}\n\nTry `/k8s help` for available commands."
         
         except Exception as e:
             logger.error("k8s_command_error", error=str(e), subcommand=subcommand)
             return f"❌ Error executing Kubernetes command: {str(e)}\n\nPlease check your cluster configuration and try again."
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Pod remediation helper
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _fix_problem_pods(self, namespace: Optional[str] = None) -> str:
+        """
+        Auto-remediate problem pods across a namespace (or all namespaces).
+
+        Strategy:
+        - Error / Failed / Completed  → delete (job pods stay permanently; safe to remove)
+        - OOMKilled                   → delete pod (triggers fresh start by controller)
+        - CrashLoopBackOff            → delete pod (replicaset / daemonset recreates it)
+        - ImagePullBackOff / ErrImage → report only (image tag / pull secret issue)
+        - Pending / Unknown           → report only (scheduling / infra issue)
+        """
+        ns_label = f" in namespace `{namespace}`" if namespace else " (all namespaces)"
+
+        kubectl_args = ["get", "pods", "-o", "wide"]
+        if namespace:
+            kubectl_args.extend(["-n", namespace])
+        else:
+            kubectl_args.append("--all-namespaces")
+
+        success, output = await self._run_kubectl_command(kubectl_args)
+        if not success:
+            return f"❌ Could not list pods: {output}"
+
+        lines = output.split("\n")
+        header = lines[0] if lines else ""
+        has_ns_col = header.strip().upper().startswith("NAMESPACE")
+
+        # Categorise pods
+        deletable: list[tuple[str, str, str]] = []   # (ns, name, status) — safe to delete
+        manual:    list[tuple[str, str, str]] = []   # needs human investigation
+
+        for line in lines[1:]:
+            if not line.strip():
+                continue
+            parts = line.split()
+            if has_ns_col:
+                if len(parts) < 6:
+                    continue
+                pod_ns, pod_name, ready, status = parts[0], parts[1], parts[2], parts[3]
+            else:
+                if len(parts) < 5:
+                    continue
+                pod_ns    = namespace or "default"
+                pod_name  = parts[0]
+                ready     = parts[1]
+                status    = parts[2]
+
+            # Determine if this pod is a problem
+            is_degraded = False
+            if any(
+                s in status
+                for s in [
+                    "Error", "Failed", "CrashLoopBackOff", "OOMKilled",
+                    "ImagePullBackOff", "ErrImagePull", "InvalidImageName",
+                ]
+            ):
+                is_degraded = True
+            elif status == "Unknown":
+                is_degraded = True
+            elif status == "Running" and "/" in ready:
+                r, t = ready.split("/", 1)
+                if r != t:
+                    is_degraded = True
+
+            if not is_degraded:
+                continue
+
+            # Route to correct bucket
+            if status in (
+                "Error", "Failed", "Completed", "OOMKilled", "CrashLoopBackOff", "Unknown"
+            ):
+                deletable.append((pod_ns, pod_name, status))
+            else:
+                # ImagePullBackOff, Pending, ContainerCreating — need manual fix
+                manual.append((pod_ns, pod_name, status))
+
+        if not deletable and not manual:
+            return (
+                f"✅ No problem pods found{ns_label}!\n"
+                "All pods appear healthy. 🎉"
+            )
+
+        fixed_lines:  list[str] = []
+        failed_lines: list[str] = []
+
+        for pod_ns, pod_name, status in deletable:
+            ok, out = await self._run_kubectl_command(
+                ["delete", "pod", pod_name, "-n", pod_ns, "--grace-period=0"]
+            )
+            action = (
+                "Restarted" if status in ("CrashLoopBackOff",)
+                else "Cleaned up"
+            )
+            if ok:
+                icon = "♻️" if "Restart" in action else "🗑️"
+                suffix = " (controller will recreate it)" if status == "CrashLoopBackOff" else ""
+                fixed_lines.append(
+                    f"{icon} {action} `{pod_ns}/{pod_name}` (was `{status}`){suffix}"
+                )
+            else:
+                failed_lines.append(
+                    f"❌ Could not delete `{pod_ns}/{pod_name}` (`{status}`): {out[:80]}"
+                )
+
+        # Build response
+        sections: list[str] = []
+        total_fixed = len(fixed_lines)
+        total_issues = len(deletable) + len(manual)
+
+        sections.append(
+            f"🔧 **Pod remediation{ns_label}:** {total_fixed}/{total_issues} issue(s) fixed"
+        )
+
+        if fixed_lines:
+            sections.append("**Fixed:**\n" + "\n".join(fixed_lines))
+        if failed_lines:
+            sections.append("**Failed to fix:**\n" + "\n".join(failed_lines))
+        if manual:
+            manual_msgs = [
+                f"⚠️ `{ns}/{name}` — `{st}` (needs manual investigation)\n"
+                + (
+                    f"   → Check pull secret / image tag: `kubectl describe pod {name} -n {ns}`"
+                    if "Image" in st
+                    else f"   → Investigate scheduling: `kubectl describe pod {name} -n {ns}`"
+                )
+                for ns, name, st in manual
+            ]
+            sections.append("**Need manual attention:**\n" + "\n".join(manual_msgs))
+
+        if total_fixed > 0:
+            sections.append(
+                "_Run `pods` or `!k8s pods` again in ~30 s to verify recovery._"
+            )
+
+        return "\n\n".join(sections)
 
     # ──────────────────────────────────────────────────────────────────────
     # AIOps command handlers

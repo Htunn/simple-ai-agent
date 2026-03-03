@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     aiops_notification_channel: str | None = Field(None, description="Channel ID/name for AIOps alerts")
     alertmanager_webhook_secret: str | None = Field(None, description="Alertmanager webhook secret for validation")
 
+    # Telegram webhook secret (set via setWebhook secret_token param)
+    telegram_webhook_secret: str | None = Field(None, description="Telegram bot API webhook secret token for request verification")
+
     # AIOps - Approval gate
     approval_timeout_seconds: int = Field(default=300, description="Seconds before pending approval auto-cancels")
 

@@ -142,7 +142,7 @@ services:
       - POSTGRES_EFFECTIVE_CACHE_SIZE=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
 
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432" # localhost only — prevents external network exposure
 
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -205,7 +205,7 @@ services:
     image: redis:7-alpine
     container_name: simple-ai-agent-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379" # localhost only — prevents external network exposure
 
     volumes:
       - redis-data:/data
@@ -361,7 +361,8 @@ services:
       - "--web.console.libraries=/etc/prometheus/console_libraries"
       - "--web.console.templates=/etc/prometheus/consoles"
       - "--web.enable-lifecycle"
-      - "--web.enable-admin-api"
+      # NOTE: --web.enable-admin-api omitted — allows unauthenticated TSDB data deletion;
+      # only enable behind an auth proxy when explicitly needed.
 
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
