@@ -19,18 +19,26 @@ services:
       - REDIS_URL=redis://redis:6379/0
 
       # Bot tokens (should be in .env file)
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
+
+      # Webhook secrets
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+      - ALERTMANAGER_WEBHOOK_SECRET=${ALERTMANAGER_WEBHOOK_SECRET:-}
 
       # Application settings
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - API_HOST=${API_HOST:-0.0.0.0}
+      - API_PORT=${API_PORT:-8000}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-gpt-4}
+      - SESSION_TTL_SECONDS=${SESSION_TTL_SECONDS:-3600}
 
       # MCP configuration
       - MCP_CONFIG_PATH=/app/.mcp-config.json
+      - MCP_SERVER_URL=${MCP_SERVER_URL:-}
 
       # Kubernetes configuration (if using K8s MCP)
       # Always use the in-container path; host kubeconfig dir is mounted at /app/.kube
@@ -44,13 +52,21 @@ services:
       # Security
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
 
-      # AIOps
+      # AIOps — Watchloop & Remediation
       - K8S_WATCHLOOP_ENABLED=${K8S_WATCHLOOP_ENABLED:-true}
       - K8S_WATCHLOOP_INTERVAL=${K8S_WATCHLOOP_INTERVAL:-60}
       - AUTO_REMEDIATION_ENABLED=${AUTO_REMEDIATION_ENABLED:-false}
       - AIOPS_NOTIFICATION_CHANNEL=${AIOPS_NOTIFICATION_CHANNEL:-}
       - APPROVAL_TIMEOUT_SECONDS=${APPROVAL_TIMEOUT_SECONDS:-300}
-      - RCA_TIMEOUT_SECONDS=${RCA_TIMEOUT_SECONDS:-120}
+      - RCA_TIMEOUT_SECONDS=${RCA_TIMEOUT_SECONDS:-30}
+      - LOG_AI_TIMEOUT_SECONDS=${LOG_AI_TIMEOUT_SECONDS:-15}
+      - MCP_TOOL_TIMEOUT_SECONDS=${MCP_TOOL_TIMEOUT_SECONDS:-60}
+      - MAX_LOG_BYTES=${MAX_LOG_BYTES:-10485760}
+
+      # Observability URLs (used by AIOps for Prometheus queries and Grafana annotations)
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
+      - GRAFANA_URL=${GRAFANA_URL:-http://grafana:3000}
+      - GRAFANA_API_KEY=${GRAFANA_API_KEY:-}
 
       # OpenTelemetry (opt-in — set OTEL_ENABLED=true to send traces to Jaeger)
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
