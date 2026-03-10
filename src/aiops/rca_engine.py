@@ -32,7 +32,7 @@ class RCAReport:
     def to_markdown(self) -> str:
         confidence_pct = int(self.confidence * 100)
         evidence_lines = "\n".join(f"  - {e}" for e in self.supporting_evidence)
-        actions_lines = "\n".join(f"  {i+1}. {a}" for i, a in enumerate(self.recommended_actions))
+        actions_lines = "\n".join(f"  {i + 1}. {a}" for i, a in enumerate(self.recommended_actions))
         return (
             f"**🔍 Root Cause Analysis**\n\n"
             f"**Pattern:** {self.failure_pattern}\n"

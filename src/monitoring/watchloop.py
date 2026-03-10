@@ -82,9 +82,9 @@ class K8sWatchLoop:
         self._task: asyncio.Task | None = None
         self._consumer_task: asyncio.Task | None = None
         self._event_queue: asyncio.Queue[ClusterEvent] = asyncio.Queue(maxsize=100)
-        self._known_issues: dict[str, datetime] = (
-            {}
-        )  # resource_key -> first_seen, to avoid duplicate alerts
+        self._known_issues: dict[
+            str, datetime
+        ] = {}  # resource_key -> first_seen, to avoid duplicate alerts
         self._k8s: KubernetesClient | None = None
         self._consecutive_failures: int = 0  # all-check failure counter for backoff
 

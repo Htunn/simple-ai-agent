@@ -1164,7 +1164,7 @@ I have {len(security_tools)} security tools from SimplePortChecker:
 • "full security scan on example.com"
 • "comprehensive security assessment for site.com"
 
-**Available Tools:** {', '.join(tool_names)}"""
+**Available Tools:** {", ".join(tool_names)}"""
 
         except Exception as e:
             logger.error("security_query_error", error=str(e))
@@ -1225,8 +1225,8 @@ I have {len(security_tools)} security tools from SimplePortChecker:
                 )
                 response = f"""📊 Status:
 Model: {current_model}
-Messages: {stats['message_count']}
-Tokens: {stats['total_tokens']}"""
+Messages: {stats["message_count"]}
+Tokens: {stats["total_tokens"]}"""
 
             elif command == "/model":
                 if len(command_parts) < 2:
@@ -1639,7 +1639,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 manual.append((pod_ns, pod_name, status))
 
         if not deletable and not manual:
-            return f"✅ No problem pods found{ns_label}!\n" "All pods appear healthy. 🎉"
+            return f"✅ No problem pods found{ns_label}!\nAll pods appear healthy. 🎉"
 
         fixed_lines: list[str] = []
         failed_lines: list[str] = []

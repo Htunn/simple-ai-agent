@@ -341,7 +341,7 @@ class MCPClient(BaseMCPTransport):
             params_str = "\n".join(param_list) if param_list else "  No parameters"
 
             tool_descriptions.append(
-                f"Tool: {name}\n" f"Description: {description}\n" f"Parameters:\n{params_str}"
+                f"Tool: {name}\nDescription: {description}\nParameters:\n{params_str}"
             )
 
         return "\n\n".join(tool_descriptions)
