@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     grafana_api_key: str | None = Field(None, description="Grafana API key for annotations")
 
     # AIOps - Watchloop
-    k8s_watchloop_interval: int = Field(default=30, description="Watchloop poll interval in seconds")
+    k8s_watchloop_interval: int = Field(default=30, ge=5, description="Watchloop poll interval in seconds (min 5)")
     k8s_watchloop_enabled: bool = Field(default=True, description="Enable K8s watchloop background task")
 
     # AIOps - Remediation
@@ -88,7 +88,21 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str | None = Field(None, description="Telegram bot API webhook secret token for request verification")
 
     # AIOps - Approval gate
-    approval_timeout_seconds: int = Field(default=300, description="Seconds before pending approval auto-cancels")
+    approval_timeout_seconds: int = Field(default=300, ge=30, description="Seconds before pending approval auto-cancels (min 30)")
+
+    # AIOps - Timeouts for AI/MCP calls
+    rca_timeout_seconds: int = Field(default=30, ge=5, description="Timeout for RCA AI completion (seconds)")
+    log_ai_timeout_seconds: int = Field(default=15, ge=5, description="Timeout for log AI enrichment (seconds)")
+    mcp_tool_timeout_seconds: int = Field(default=60, ge=10, description="Timeout for a single MCP tool call (seconds)")
+
+    # AIOps - Input limits
+    max_log_bytes: int = Field(default=10_485_760, ge=1024, description="Maximum log size accepted by log analyzer (bytes, default 10 MB)")
+
+    # OpenTelemetry
+    otel_enabled: bool = Field(default=False, description="Enable OpenTelemetry distributed tracing")
+    otel_service_name: str = Field(default="simple-ai-agent", description="OTel service.name resource attribute")
+    otlp_endpoint: str | None = Field(None, description="OTLP gRPC endpoint, e.g. http://jaeger:4317")
+    otel_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0, description="Trace sampling rate (0.0–1.0)")
 
 
 @lru_cache()

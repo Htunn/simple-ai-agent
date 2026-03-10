@@ -44,6 +44,12 @@ services:
       # Security
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
 
+      # OpenTelemetry (opt-in — set OTEL_ENABLED=true to send traces to Jaeger)
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTLP_ENDPOINT=${OTLP_ENDPOINT:-http://jaeger:4317}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-simple-ai-agent}
+      - OTEL_SAMPLE_RATE=${OTEL_SAMPLE_RATE:-1.0}
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -498,6 +504,47 @@ services:
         max-size: "10m"
         max-file: "3"
 
+    security_opt:
+      - no-new-privileges:true
+
+  # ─────────────────────────────────────────────────────────────
+  # Jaeger all-in-one — receives OTLP spans from the app and
+  # exposes a UI at :16686.  Opt-in: set OTEL_ENABLED=true in
+  # the app's environment (or .env) to start sending traces.
+  # ─────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.56
+    container_name: simple-ai-agent-jaeger
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686" # Jaeger UI
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=memory
+      - MEMORY_MAX_TRACES=${JAEGER_MAX_TRACES:-10000}
+    restart: unless-stopped
+    networks:
+      - aiagent-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:16686/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
 

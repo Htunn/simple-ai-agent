@@ -6,6 +6,7 @@ The PlaybookExecutor runs steps sequentially, routing high-risk steps
 through the ApprovalManager before execution.
 """
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
@@ -16,7 +17,11 @@ if TYPE_CHECKING:
 
 import structlog
 
+from src.config import get_settings
+from src.monitoring.tracing import get_tracer
+
 logger = structlog.get_logger()
+_tracer = get_tracer(__name__)
 
 
 class RiskLevel(str, Enum):
@@ -305,73 +310,86 @@ class PlaybookExecutor:
             playbook_id=playbook_id,
             incident_context=incident_context,
         )
-        run.status = "running"
-        logger.info("playbook_started", run_id=run.run_id, playbook=playbook_id,
-                    resource=incident_context.get("resource_name"),
-                    namespace=incident_context.get("namespace"))
 
-        for i, step in enumerate(playbook.steps):
-            run.current_step = i
+        with _tracer.start_as_current_span(
+            "playbook.execute",
+            attributes={
+                "playbook.id": playbook_id,
+                "playbook.run_id": run.run_id,
+                "playbook.requested_by": requested_by,
+            },
+        ) as span:
+            run.status = "running"
+            logger.info("playbook_started", run_id=run.run_id, playbook=playbook_id,
+                        resource=incident_context.get("resource_name"),
+                        namespace=incident_context.get("namespace"))
 
-            if run.status == "failed":
-                break
+            for i, step in enumerate(playbook.steps):
+                run.current_step = i
 
-            params = step.resolve_params(incident_context)
-
-            if step.risk_level == RiskLevel.LOW:
-                output = await self._run_step(run, step, params)
-                run.step_outputs.append(output)
                 if run.status == "failed":
                     break
-                # Notify progress if callback available
-                if self._notify and channel_target:
-                    await self._safe_notify(channel_target, f"▶️ **{step.name}**: {output[:300]}")
 
-            else:
-                # MEDIUM / HIGH — request approval and pause
-                run.status = "awaiting_approval"
-                if self._approval:
-                    try:
-                        await self._approval.request_approval(
-                            tool_name=step.tool_name,
-                            tool_params=params,
-                            risk_level=step.risk_level,
-                            description=step.description,
-                            requested_by=requested_by,
-                            channel_type=channel_type,
-                            channel_target=channel_target,
-                            playbook_run_id=run.run_id,
-                        )
-                        logger.info("playbook_awaiting_approval", run_id=run.run_id,
-                                    step=step.name, risk=step.risk_level.value)
-                    except Exception as e:
-                        logger.error("playbook_approval_request_failed",
-                                     run_id=run.run_id, step=step.name, error=str(e))
-                        run.step_outputs.append(f"⚠️ Step '{step.name}' approval request failed: {e}")
-                        run.status = "failed"
-                        run.error = str(e)
+                params = step.resolve_params(incident_context)
+
+                if step.risk_level == RiskLevel.LOW:
+                    output = await self._run_step(run, step, params)
+                    run.step_outputs.append(output)
+                    if run.status == "failed":
+                        break
+                    # Notify progress if callback available
+                    if self._notify and channel_target:
+                        await self._safe_notify(channel_target, f"▶️ **{step.name}**: {output[:300]}")
+
                 else:
-                    # No approval manager — skip with warning
-                    run.step_outputs.append(
-                        f"⚠️ Step '{step.name}' ({step.risk_level.value} risk) skipped — "
-                        f"no ApprovalManager configured."
-                    )
-                # Stop processing further steps until approval is granted
-                break
+                    # MEDIUM / HIGH — request approval and pause
+                    run.status = "awaiting_approval"
+                    if self._approval:
+                        try:
+                            await self._approval.request_approval(
+                                tool_name=step.tool_name,
+                                tool_params=params,
+                                risk_level=step.risk_level,
+                                description=step.description,
+                                requested_by=requested_by,
+                                channel_type=channel_type,
+                                channel_target=channel_target,
+                                send_message_callback=self._notify,
+                                playbook_run_id=run.run_id,
+                            )
+                            logger.info("playbook_awaiting_approval", run_id=run.run_id,
+                                        step=step.name, risk=step.risk_level.value)
+                        except Exception as e:
+                            logger.error("playbook_approval_request_failed",
+                                         run_id=run.run_id, step=step.name, error=str(e))
+                            run.step_outputs.append(f"⚠️ Step '{step.name}' approval request failed: {e}")
+                            run.status = "failed"
+                            run.error = str(e)
+                    else:
+                        # No approval manager — skip with warning
+                        run.step_outputs.append(
+                            f"⚠️ Step '{step.name}' ({step.risk_level.value} risk) skipped — "
+                            f"no ApprovalManager configured."
+                        )
+                    # Stop processing further steps until approval is granted
+                    break
 
-        if run.status == "running":
-            run.status = "completed"
-            logger.info("playbook_completed", run_id=run.run_id,
-                        playbook=playbook_id, steps_executed=len(run.step_outputs))
+            if run.status == "running":
+                run.status = "completed"
+                logger.info("playbook_completed", run_id=run.run_id,
+                            playbook=playbook_id, steps_executed=len(run.step_outputs))
 
-        if playbook.on_complete:
-            try:
-                success = run.status == "completed"
-                await playbook.on_complete(run.run_id, success, run.error or "")
-            except Exception as e:
-                logger.warning("playbook_on_complete_failed", error=str(e))
+            span.set_attribute("playbook.final_status", run.status)
+            span.set_attribute("playbook.steps_executed", len(run.step_outputs))
 
-        return run
+            if playbook.on_complete:
+                try:
+                    success = run.status == "completed"
+                    await playbook.on_complete(run.run_id, success, run.error or "")
+                except Exception as e:
+                    logger.warning("playbook_on_complete_failed", error=str(e))
+
+            return run
 
     async def _run_step(
         self,
@@ -385,11 +403,32 @@ class PlaybookExecutor:
         if not self._mcp:
             return f"⚠️ '{step.name}' skipped — MCP manager not available"
 
+        settings = get_settings()
+        timeout = getattr(settings, "mcp_tool_timeout_seconds", 60)
         try:
-            result = await self._mcp.call_tool(step.tool_name, params)
+            result = await asyncio.wait_for(
+                self._mcp.call_tool(step.tool_name, params),
+                timeout=float(timeout),
+            )
             output = str(result)[:600]
+            # Validate output against success_pattern if defined
+            if step.success_pattern:
+                import re as _re
+                if not _re.search(step.success_pattern, output):
+                    logger.error("playbook_step_pattern_mismatch",
+                                 run_id=run.run_id, step=step.name,
+                                 pattern=step.success_pattern)
+                    run.status = "failed"
+                    run.error = f"Step '{step.name}' output did not match success_pattern '{step.success_pattern}'"
+                    return f"❌ {step.name}: output did not match success pattern"
             logger.info("playbook_step_completed", run_id=run.run_id, step=step.name)
             return f"✅ {step.name}: {output}"
+        except asyncio.TimeoutError:
+            logger.error("playbook_step_timeout",
+                         run_id=run.run_id, step=step.name, timeout_seconds=timeout)
+            run.status = "failed"
+            run.error = f"Step '{step.name}' timed out after {timeout}s"
+            return f"❌ {step.name}: timed out after {timeout}s"
         except Exception as e:
             logger.error("playbook_step_failed",
                          run_id=run.run_id, step=step.name, error=str(e))
@@ -402,4 +441,4 @@ class PlaybookExecutor:
             try:
                 await self._notify(target, message)
             except Exception as e:
-                logger.debug("playbook_notify_failed", error=str(e))
+                logger.warning("playbook_notify_failed", error=str(e))

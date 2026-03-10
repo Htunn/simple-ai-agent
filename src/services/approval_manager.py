@@ -20,9 +20,13 @@ from typing import Any, Callable, Coroutine
 import structlog
 
 from src.config import get_settings
+from src.database.postgres import get_db_session
+from src.database.models import ApprovalAuditLog
+from src.monitoring.tracing import get_tracer
 
 logger = structlog.get_logger()
 settings = get_settings()
+_tracer = get_tracer(__name__)
 
 
 class RiskLevel(str, Enum):
@@ -104,6 +108,7 @@ class ApprovalManager:
     """
 
     REDIS_KEY_PREFIX = "approval:"
+    REDIS_INDEX_PREFIX = "approval_idx:"  # short_id → full approval_id index
 
     def __init__(self, redis_client=None, mcp_manager=None) -> None:
         self._redis = redis_client
@@ -126,39 +131,58 @@ class ApprovalManager:
         Create a pending approval and notify the user.
         Returns the approval_id.
         """
-        approval = PendingApproval(
-            approval_id=str(uuid.uuid4()),
-            tool_name=tool_name,
-            tool_params=tool_params,
-            risk_level=risk_level,
-            description=description,
-            requested_by=requested_by,
-            channel_type=channel_type,
-            channel_target=channel_target,
-            playbook_run_id=playbook_run_id,
-            incident_id=incident_id,
-        )
-
-        # Store in Redis with TTL
-        if self._redis:
-            key = f"{self.REDIS_KEY_PREFIX}{approval.approval_id}"
-            await self._redis.setex(
-                key,
-                settings.approval_timeout_seconds,
-                json.dumps(approval.to_dict()),
+        with _tracer.start_as_current_span(
+            "approval.request",
+            attributes={
+                "approval.tool": tool_name,
+                "approval.risk_level": risk_level.value,
+                "approval.requested_by": requested_by,
+            },
+        ):
+            approval = PendingApproval(
+                approval_id=str(uuid.uuid4()),
+                tool_name=tool_name,
+                tool_params=tool_params,
+                risk_level=risk_level,
+                description=description,
+                requested_by=requested_by,
+                channel_type=channel_type,
+                channel_target=channel_target,
+                playbook_run_id=playbook_run_id,
+                incident_id=incident_id,
             )
 
-        logger.info("approval_requested",
-                   approval_id=approval.approval_id,
-                   tool=tool_name,
-                   risk=risk_level.value,
-                   user=requested_by)
+            # Store in Redis with TTL
+            if self._redis:
+                key = f"{self.REDIS_KEY_PREFIX}{approval.approval_id}"
+                short_id = approval.approval_id[:8]
+                idx_key = f"{self.REDIS_INDEX_PREFIX}{short_id}"
+                await self._redis.setex(
+                    key,
+                    settings.approval_timeout_seconds,
+                    json.dumps(approval.to_dict()),
+                )
+                # Index: short_id → full approval_id (same TTL)
+                await self._redis.setex(
+                    idx_key,
+                    settings.approval_timeout_seconds,
+                    approval.approval_id,
+                )
 
-        # Notify user
-        if send_message_callback:
-            await send_message_callback(channel_target, approval.approval_message())
+            logger.info("approval_requested",
+                       approval_id=approval.approval_id,
+                       tool=tool_name,
+                       risk=risk_level.value,
+                       user=requested_by)
 
-        return approval.approval_id
+            # Persist to PostgreSQL for durable audit trail
+            await self._write_audit_log(approval, "requested", actor=None)
+
+            # Notify user
+            if send_message_callback:
+                await send_message_callback(channel_target, approval.approval_message())
+
+            return approval.approval_id
 
     async def process_response(self, text: str, user_id: str, channel_target: str) -> str | None:
         """
@@ -203,25 +227,73 @@ class ApprovalManager:
         try:
             result = await self._mcp.call_tool(approval.tool_name, approval.tool_params)
             await self._update_status(approval.approval_id, ApprovalStatus.EXECUTED)
+            await self._write_audit_log(approval, "executed", actor=approved_by)
             logger.info("approval_executed", approval_id=approval.approval_id, tool=approval.tool_name)
             return (
                 f"✅ **{approval.description}** executed successfully.\n\n"
                 f"```\n{str(result)[:800]}\n```"
             )
         except Exception as e:
+            await self._write_audit_log(approval, "failed", actor=approved_by, error_msg=str(e))
             logger.error("approval_execution_failed", approval_id=approval.approval_id, error=str(e))
             return f"❌ Execution failed: {e}"
 
     async def _reject_approval(self, approval: PendingApproval, rejected_by: str) -> str:
         await self._update_status(approval.approval_id, ApprovalStatus.REJECTED)
+        await self._write_audit_log(approval, "rejected", actor=rejected_by)
         logger.info("approval_rejected", approval_id=approval.approval_id, rejected_by=rejected_by)
         return f"❌ Action **{approval.description}** rejected by {rejected_by}."
 
-    async def _find_by_short_id(self, short_id: str) -> PendingApproval | None:
-        """Find a pending approval by the first 8 chars of its ID."""
+    async def _write_audit_log(
+        self,
+        approval: "PendingApproval",
+        event_type: str,
+        actor: str | None = None,
+        error_msg: str | None = None,
+    ) -> None:
+        """Persist an approval lifecycle event to PostgreSQL."""
+        try:
+            async with get_db_session() as session:
+                record = ApprovalAuditLog(
+                    approval_id=approval.approval_id,
+                    tool_name=approval.tool_name,
+                    risk_level=approval.risk_level.value,
+                    description=approval.description,
+                    requested_by=approval.requested_by,
+                    channel_type=approval.channel_type,
+                    channel_target=approval.channel_target,
+                    event_type=event_type,
+                    actor=actor,
+                    playbook_run_id=approval.playbook_run_id,
+                    incident_id=approval.incident_id,
+                    tool_params=approval.tool_params,
+                    error_msg=error_msg,
+                )
+                session.add(record)
+        except Exception as e:
+            logger.warning("approval_audit_write_failed", error=str(e), event_type=event_type)
+
+    async def _find_by_short_id(self, short_id: str) -> "PendingApproval | None":
+        """Find a pending approval by the first 8 chars of its ID.
+
+        Uses a dedicated Redis index key (O(1)) instead of a full SCAN.
+        Falls back to the legacy SCAN path if the index key is missing
+        (e.g. approvals created before the index was introduced).
+        """
         if not self._redis:
             return None
-        # Scan for matching keys (low volume expected)
+
+        # Fast O(1) index lookup
+        idx_key = f"{self.REDIS_INDEX_PREFIX}{short_id}"
+        full_id_raw = await self._redis.get(idx_key)
+        if full_id_raw:
+            full_id = full_id_raw.decode() if isinstance(full_id_raw, bytes) else full_id_raw
+            data = await self._redis.get(f"{self.REDIS_KEY_PREFIX}{full_id}")
+            if data:
+                raw = json.loads(data.decode() if isinstance(data, bytes) else data)
+                return PendingApproval.from_dict(raw)
+
+        # Fallback: linear SCAN for approvals without an index entry
         cursor = 0
         pattern = f"{self.REDIS_KEY_PREFIX}*"
         while True:

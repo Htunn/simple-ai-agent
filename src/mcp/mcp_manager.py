@@ -15,9 +15,11 @@ import structlog
 from src.config import get_settings
 from src.mcp.base_transport import BaseMCPTransport
 from src.mcp.sse_transport import SSETransport
+from src.monitoring.tracing import get_tracer
 
 logger = structlog.get_logger()
 settings = get_settings()
+_tracer = get_tracer(__name__)
 
 
 class MCPManager:
@@ -249,7 +251,11 @@ class MCPManager:
             }
 
         try:
-            result = await transport.call_tool(tool_name, arguments)
+            with _tracer.start_as_current_span(
+                "mcp.call_tool",
+                attributes={"tool.name": tool_name, "mcp.server": server_name},
+            ):
+                result = await transport.call_tool(tool_name, arguments)
             logger.debug("tool_called", tool=tool_name, server=server_name, success=True)
             return result
         except Exception as e:

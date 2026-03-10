@@ -5,6 +5,7 @@ Scans container log output for known error patterns (OOMKill, connection
 refused, stack traces, etc.) and optionally enriches with AI classification.
 """
 
+import asyncio
 import re
 from dataclasses import dataclass, field
 from enum import Enum
@@ -12,7 +13,12 @@ from typing import Any
 
 import structlog
 
+from src.config import get_settings
+
 logger = structlog.get_logger()
+
+# Default maximum log size allowed for analysis (10 MB)
+_DEFAULT_MAX_LOG_BYTES = 10 * 1024 * 1024
 
 
 class LogSeverity(str, Enum):
@@ -101,13 +107,16 @@ PATTERNS: list[tuple[str, LogSeverity, str]] = [
 
 
 class LogAnalyzer:
-    """
-    Analyzes container log text for error patterns.
+    """Regex + AI log pattern analyzer."""
 
-    Usage:
-        analyzer = LogAnalyzer()
-        result = analyzer.analyze(pod_name="nginx-abc", namespace="prod", logs=log_text)
-    """
+    # Class-level compiled pattern cache — built once, shared across all instances.
+    _compiled: list[tuple[str, LogSeverity, re.Pattern[str]]] | None = None
+
+    @classmethod
+    def _get_compiled(cls) -> list[tuple[str, LogSeverity, re.Pattern[str]]]:
+        if cls._compiled is None:
+            cls._compiled = [(n, s, re.compile(p)) for n, s, p in PATTERNS]
+        return cls._compiled
 
     def analyze(
         self,
@@ -117,6 +126,18 @@ class LogAnalyzer:
         ai_client=None,
     ) -> LogAnalysisResult:
         """Analyze log text synchronously (regex only)."""
+        settings = get_settings()
+        max_bytes = getattr(settings, "max_log_bytes", _DEFAULT_MAX_LOG_BYTES)
+        if len(logs.encode("utf-8", errors="replace")) > max_bytes:
+            logger.warning(
+                "log_analyzer_oversized_log",
+                pod=pod_name,
+                size_bytes=len(logs),
+                max_bytes=max_bytes,
+            )
+            # Truncate to last max_bytes worth of characters (approximate)
+            logs = logs[-max_bytes:]
+
         lines = logs.strip().split("\n") if logs else []
         total_lines = len(lines)
         error_count = 0
@@ -124,8 +145,7 @@ class LogAnalyzer:
         detected: list[LogMatch] = []
         raw_errors: list[str] = []
 
-        for name, severity, pattern in PATTERNS:
-            regex = re.compile(pattern)
+        for name, severity, regex in self._get_compiled():
             matched_lines = [l for l in lines if regex.search(l)]
             if matched_lines:
                 if severity in (LogSeverity.CRITICAL, LogSeverity.ERROR):
@@ -173,6 +193,8 @@ class LogAnalyzer:
         if not ai_client:
             return result
 
+        settings = get_settings()
+        timeout = getattr(settings, "log_ai_timeout_seconds", 15)
         try:
             log_sample = "\n".join(logs.strip().split("\n")[-30:])
             patterns_found = ", ".join(m.pattern_name for m in result.detected_patterns) or "none"
@@ -182,12 +204,17 @@ class LogAnalyzer:
                 f"Log sample:\n```\n{log_sample}\n```\n\n"
                 f"Provide: failure cause, impact, and immediate remediation suggestion."
             )
-            ai_response = await ai_client.complete(
-                user_message=prompt,
-                model="gpt-4o-mini",
-                max_tokens=300,
+            ai_response = await asyncio.wait_for(
+                ai_client.complete(
+                    user_message=prompt,
+                    model="gpt-4o-mini",
+                    max_tokens=300,
+                ),
+                timeout=float(timeout),
             )
             result.ai_classification = ai_response.strip()
+        except asyncio.TimeoutError:
+            logger.warning("log_ai_analysis_timeout", timeout_seconds=timeout, pod=pod_name)
         except Exception as e:
             logger.warning("log_ai_analysis_failed", error=str(e))
 

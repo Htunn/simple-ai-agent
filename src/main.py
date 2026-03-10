@@ -10,8 +10,12 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
+
 from src.ai import GitHubModelsClient
 from src.api import health_router, limiter, set_message_router, webhook_router
+from src.api.middleware import ContentSizeLimitMiddleware, CorrelationIdMiddleware
 from src.channels import create_router
 from src.config import get_settings
 from src.database import close_db, close_redis, init_db, init_redis
@@ -19,6 +23,7 @@ from src.mcp.mcp_manager import MCPManager
 from src.services import MessageHandler
 from src.utils import configure_logging
 import src.monitoring.metrics as _metrics  # noqa: F401 — registers Prometheus metrics on import
+from src.monitoring.tracing import instrument_fastapi, setup_tracing, shutdown_tracing
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -41,6 +46,23 @@ async def lifespan(app: FastAPI):
 
     # Configure logging
     configure_logging(settings.log_level)
+
+    # Initialise OpenTelemetry tracing (no-op when otel_enabled=False)
+    if settings.otel_enabled:
+        setup_tracing(settings)
+        instrument_fastapi(app)
+        logger.info("otel_tracing_enabled", service=settings.otel_service_name)
+
+    # Run database migrations (idempotent — applies only pending revisions)
+    logger.info("running_db_migrations")
+    try:
+        alembic_cfg = AlembicConfig("alembic.ini")
+        await asyncio.get_event_loop().run_in_executor(
+            None, lambda: alembic_command.upgrade(alembic_cfg, "head")
+        )
+        logger.info("db_migrations_complete")
+    except Exception as e:
+        logger.warning("db_migrations_failed", error=str(e))
 
     # Initialize database
     logger.info("initializing_database")
@@ -212,6 +234,10 @@ async def lifespan(app: FastAPI):
     if mcp_manager:
         await mcp_manager.stop()
 
+    # Flush OTel spans before closing connections
+    if settings.otel_enabled:
+        shutdown_tracing()
+
     # Close database connections
     await close_db()
 
@@ -228,6 +254,10 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Add request middleware (outermost first)
+app.add_middleware(ContentSizeLimitMiddleware)
+app.add_middleware(CorrelationIdMiddleware)
 
 # Add rate limiting
 app.state.limiter = limiter

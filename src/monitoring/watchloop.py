@@ -63,17 +63,26 @@ class K8sWatchLoop:
         await loop.stop()
     """
 
+    # After this many consecutive full-tick failures, back off exponentially.
+    _FAILURE_THRESHOLD = 3
+    # Maximum back-off interval in seconds (10 minutes).
+    _MAX_BACKOFF_SECONDS = 600
+
     def __init__(
         self,
         event_callback: Callable[[ClusterEvent], Coroutine] | None = None,
         interval: int | None = None,
     ) -> None:
         self._event_callback = event_callback
-        self._interval = interval or settings.k8s_watchloop_interval
+        self._base_interval = interval or settings.k8s_watchloop_interval
+        self._interval = self._base_interval
         self._running = False
         self._task: asyncio.Task | None = None
+        self._consumer_task: asyncio.Task | None = None
+        self._event_queue: asyncio.Queue[ClusterEvent] = asyncio.Queue(maxsize=100)
         self._known_issues: dict[str, datetime] = {}  # resource_key -> first_seen, to avoid duplicate alerts
         self._k8s: "KubernetesClient | None" = None
+        self._consecutive_failures: int = 0  # all-check failure counter for backoff
 
     async def start(self) -> None:
         """Start the watchloop background task."""
@@ -91,6 +100,7 @@ class K8sWatchLoop:
 
         self._running = True
         self._task = asyncio.create_task(self._run(), name="k8s-watchloop")
+        self._consumer_task = asyncio.create_task(self._consume_events(), name="k8s-watchloop-consumer")
         logger.info("k8s_watchloop_started", interval_seconds=self._interval)
 
     async def stop(self) -> None:
@@ -102,6 +112,12 @@ class K8sWatchLoop:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        if self._consumer_task and not self._consumer_task.done():
+            self._consumer_task.cancel()
+            try:
+                await self._consumer_task
+            except asyncio.CancelledError:
+                pass
         logger.info("k8s_watchloop_stopped")
 
     @property
@@ -109,7 +125,7 @@ class K8sWatchLoop:
         return self._running and (self._task is not None) and not (self._task.done())
 
     async def _run(self) -> None:
-        """Main watchloop polling loop."""
+        """Main watchloop polling loop with exponential back-off on repeated failures."""
         while self._running:
             try:
                 await self._tick()
@@ -119,11 +135,30 @@ class K8sWatchLoop:
                 logger.error("watchloop_tick_error", error=str(e))
             await asyncio.sleep(self._interval)
 
+    def _prune_known_issues(self) -> None:
+        """Evict stale entries from _known_issues to prevent unbounded growth.
+
+        Entries older than 24 hours are removed; legitimate ongoing issues will be
+        re-detected and re-added on the next tick.
+        """
+        cutoff = datetime.now(timezone.utc).timestamp() - 86400  # 24 h
+        stale = [k for k, v in self._known_issues.items() if v.timestamp() < cutoff]
+        for k in stale:
+            self._known_issues.pop(k, None)
+        if stale:
+            logger.debug("watchloop_pruned_stale_issues", count=len(stale))
+
     async def _tick(self) -> None:
         """Single poll iteration across all namespaces."""
         if self._k8s is None:
             return
+
+        # Prune stale known-issue entries to bound memory growth
+        self._prune_known_issues()
+
         events: list[ClusterEvent] = []
+        checks_failed = 0  # how many of the 3 checks failed this tick
+        checks_total = 3
 
         # 1. Scan for crashloop and OOMKilled pods
         try:
@@ -147,7 +182,8 @@ class K8sWatchLoop:
                 elif pod.get("status") not in ("CrashLoopBackOff", "Error", "OOMKilled"):
                     self._known_issues.pop(key, None)
         except Exception as e:
-            logger.debug("watchloop_crashloop_check_error", error=str(e))
+            checks_failed += 1
+            logger.warning("watchloop_crashloop_check_error", error=str(e))
 
         # 2. Scan for NotReady nodes
         try:
@@ -174,7 +210,8 @@ class K8sWatchLoop:
                         labels=node.get("labels", {}),
                     ))
         except Exception as e:
-            logger.debug("watchloop_node_check_error", error=str(e))
+            checks_failed += 1
+            logger.warning("watchloop_node_check_error", error=str(e))
 
         # 3. Scan for deployments with 0 available replicas (desired > 0)
         try:
@@ -210,18 +247,63 @@ class K8sWatchLoop:
                     logger.info("watchloop_deployment_recovered", deployment=dep_name, namespace=ns_name)
 
         except Exception as e:
-            logger.debug("watchloop_deployment_check_error", error=str(e))
+            checks_failed += 1
+            logger.warning("watchloop_deployment_check_error", error=str(e))
 
-        # Publish events
+        # ── Back-off logic ────────────────────────────────────────────────────
+        if checks_failed == checks_total:
+            # All checks failed — K8s is likely unreachable
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self._FAILURE_THRESHOLD:
+                new_interval = min(
+                    self._base_interval * (2 ** (self._consecutive_failures - self._FAILURE_THRESHOLD + 1)),
+                    self._MAX_BACKOFF_SECONDS,
+                )
+                if new_interval != self._interval:
+                    self._interval = new_interval
+                    logger.warning(
+                        "watchloop_backing_off",
+                        consecutive_failures=self._consecutive_failures,
+                        next_interval_seconds=self._interval,
+                        msg="K8s unreachable — reducing poll frequency to avoid log spam",
+                    )
+        else:
+            # At least one check succeeded — reset back-off
+            if self._consecutive_failures >= self._FAILURE_THRESHOLD:
+                logger.info(
+                    "watchloop_recovered",
+                    msg="K8s is reachable again — restoring normal poll interval",
+                    interval_seconds=self._base_interval,
+                )
+            self._consecutive_failures = 0
+            self._interval = self._base_interval
+
+        # Publish events via bounded queue (backpressure: drop if full)
+        dropped = 0
         for event in events:
             logger.info("watchloop_event_detected", event_type=event.event_type,
                        resource=f"{event.resource_kind}/{event.resource_name}",
                        severity=event.severity)
+            try:
+                self._event_queue.put_nowait(event)
+            except asyncio.QueueFull:
+                dropped += 1
+                logger.warning("watchloop_event_queue_full", dropped=dropped,
+                               event_type=event.event_type)
+
+        if events:
+            logger.info("watchloop_tick_complete", events_detected=len(events), dropped=dropped)
+
+    async def _consume_events(self) -> None:
+        """Drain the event queue and invoke the callback sequentially."""
+        while True:
+            try:
+                event = await self._event_queue.get()
+            except asyncio.CancelledError:
+                break
             if self._event_callback:
                 try:
                     await self._event_callback(event)
                 except Exception as e:
                     logger.error("watchloop_callback_error", error=str(e))
-
-        if events:
-            logger.info("watchloop_tick_complete", events_detected=len(events))
+            self._event_queue.task_done()

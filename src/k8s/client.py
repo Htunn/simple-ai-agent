@@ -14,6 +14,8 @@ import structlog
 
 logger = structlog.get_logger()
 
+_RETRY_INTERVAL_SECONDS = 30  # seconds between background reinit attempts
+
 
 class KubernetesClient:
     """
@@ -38,6 +40,7 @@ class KubernetesClient:
         self._config = None
         self._initialized = False
         self._init_attempted = False
+        self._retry_task: asyncio.Task | None = None
 
     @classmethod
     async def get_instance(cls) -> "KubernetesClient":
@@ -91,6 +94,10 @@ class KubernetesClient:
                             path=kubeconfig_path,
                             context=k8s_context or "(current-context)",
                         )
+                        # Apply SOCKS5 proxy if kubeconfig specifies proxy-url
+                        proxy_url = self._read_proxy_url(kubeconfig_path, k8s_context)
+                        if proxy_url:
+                            self._patch_k8s_rest_for_socks(proxy_url)
                         loaded = True
                         break
                     except Exception as load_err:
@@ -115,11 +122,83 @@ class KubernetesClient:
             logger.warning("k8s_client_init_failed", error=str(e))
             self._initialized = False
             # Do not re-raise — callers check is_available; K8s features are optional
+            # Schedule a background retry so the client can recover without a full restart
+            if self._retry_task is None or self._retry_task.done():
+                self._retry_task = asyncio.create_task(
+                    self._retry_loop(), name="k8s-client-retry"
+                )
+
+    async def _retry_loop(self) -> None:
+        """Background task that retries K8s init at a fixed interval until successful."""
+        while not self._initialized:
+            await asyncio.sleep(_RETRY_INTERVAL_SECONDS)
+            logger.info("k8s_client_retry_attempt")
+            self._init_attempted = False
+            await self._initialize()
+        self._retry_task = None
+        logger.info("k8s_client_retry_succeeded")
 
     @staticmethod
     def _is_in_cluster() -> bool:
         """Detect if running inside a Kubernetes pod."""
         return os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
+
+    @staticmethod
+    def _read_proxy_url(kubeconfig_path: str, context_name: str | None) -> str | None:
+        """Extract proxy-url for the active context's cluster from a kubeconfig file."""
+        try:
+            import yaml
+            with open(kubeconfig_path) as f:
+                kc = yaml.safe_load(f)
+            ctx_name = context_name or kc.get("current-context", "")
+            ctx_objs = {c["name"]: c.get("context", {}) for c in (kc.get("contexts") or [])}
+            cluster_name = ctx_objs.get(ctx_name, {}).get("cluster", "")
+            cluster_objs = {c["name"]: c.get("cluster", {}) for c in (kc.get("clusters") or [])}
+            return cluster_objs.get(cluster_name, {}).get("proxy-url")
+        except Exception:
+            return None
+
+    @staticmethod
+    def _patch_k8s_rest_for_socks(proxy_url: str) -> None:
+        """Monkey-patch kubernetes-asyncio RESTClientObject to use aiohttp-socks ProxyConnector."""
+        if not proxy_url.startswith("socks"):
+            return
+        try:
+            from aiohttp_socks import ProxyConnector
+            import ssl as _ssl
+            import aiohttp as _aio
+            import kubernetes_asyncio.client.rest as _rest
+
+            _proxy = proxy_url
+
+            def _patched_init(self, configuration, pools_size=4, maxsize=None):
+                if maxsize is None:
+                    maxsize = configuration.connection_pool_maxsize
+                ssl_ctx = _ssl.create_default_context(cafile=configuration.ssl_ca_cert)
+                if configuration.cert_file:
+                    ssl_ctx.load_cert_chain(
+                        configuration.cert_file, keyfile=configuration.key_file
+                    )
+                self.server_hostname = configuration.tls_server_name
+                if not configuration.verify_ssl:
+                    ssl_ctx.check_hostname = False
+                    ssl_ctx.verify_mode = _ssl.CERT_NONE
+                self.proxy = None
+                self.proxy_headers = None
+                connector = ProxyConnector.from_url(_proxy, ssl=ssl_ctx, limit=maxsize)
+                self.pool_manager = _aio.ClientSession(
+                    connector=connector,
+                    trust_env=True,
+                    read_bufsize=2 ** 21,
+                )
+
+            _rest.RESTClientObject.__init__ = _patched_init
+            logger.info("k8s_socks5_proxy_active", proxy_url=proxy_url)
+        except ImportError:
+            logger.warning(
+                "k8s_socks5_proxy_unavailable",
+                msg="Install aiohttp-socks to use socks5 proxy-url from kubeconfig",
+            )
 
     @property
     def is_available(self) -> bool:

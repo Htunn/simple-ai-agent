@@ -6,12 +6,16 @@ sends it to the AI model with an SRE-specialist prompt to produce
 a structured RCA report with confidence score and recommended actions.
 """
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
 
+from src.config import get_settings
+
 logger = structlog.get_logger()
+Settings = get_settings
 
 
 @dataclass
@@ -86,30 +90,46 @@ class RCAEngine:
         if not self._ai_client:
             return self._fallback_rca(incident_context)
 
+        settings = get_settings()
+        timeout = getattr(settings, "rca_timeout_seconds", 30)
         user_message = self._build_context_message(incident_context)
         try:
             import json
-            response = await self._ai_client.complete(
-                system_prompt=_RCA_SYSTEM_PROMPT,
-                user_message=user_message,
-                model="gpt-4o",
-                max_tokens=800,
+            response = await asyncio.wait_for(
+                self._ai_client.complete(
+                    system_prompt=_RCA_SYSTEM_PROMPT,
+                    user_message=user_message,
+                    model="gpt-4o",
+                    max_tokens=800,
+                ),
+                timeout=float(timeout),
             )
-            # Extract JSON from response
+            # Extract JSON from response (handle code-fenced output)
             content = response.strip()
             if "```" in content:
-                content = content.split("```")[1]
+                parts = content.split("```")
+                content = parts[1] if len(parts) > 1 else content
                 if content.startswith("json"):
                     content = content[4:]
-            data = json.loads(content)
+            try:
+                data = json.loads(content)
+            except (json.JSONDecodeError, ValueError) as parse_err:
+                logger.warning("rca_json_parse_failed", error=str(parse_err))
+                return self._fallback_rca(incident_context)
+
+            raw_confidence = float(data.get("confidence", 0.5))
+            confidence = max(0.0, min(1.0, raw_confidence))  # clamp to [0.0, 1.0]
             return RCAReport(
-                root_cause=data.get("root_cause", "Unknown"),
-                confidence=float(data.get("confidence", 0.5)),
-                failure_pattern=data.get("failure_pattern", "Unknown"),
-                recommended_actions=data.get("recommended_actions", []),
-                supporting_evidence=data.get("supporting_evidence", []),
+                root_cause=data.get("root_cause") or "Unknown",
+                confidence=confidence,
+                failure_pattern=data.get("failure_pattern") or "Unknown",
+                recommended_actions=data.get("recommended_actions") or [],
+                supporting_evidence=data.get("supporting_evidence") or [],
                 incident_context=incident_context,
             )
+        except asyncio.TimeoutError:
+            logger.warning("rca_ai_timeout", timeout_seconds=timeout)
+            return self._fallback_rca(incident_context)
         except Exception as e:
             logger.warning("rca_ai_analysis_failed", error=str(e))
             return self._fallback_rca(incident_context)

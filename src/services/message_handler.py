@@ -14,9 +14,11 @@ from src.channels.router import MessageRouter
 from src.database import get_db_session
 from src.database.redis import RedisCache, get_redis
 from src.mcp.mcp_manager import MCPManager
+from src.monitoring.tracing import get_tracer
 from src.services.session_manager import SessionManager
 
 logger = structlog.get_logger()
+_tracer = get_tracer(__name__)
 
 # Kubernetes keywords for detection
 K8S_KEYWORDS = [
@@ -309,51 +311,58 @@ class MessageHandler:
         Args:
             message: Incoming channel message
         """
-        logger.info(
-            "message_received",
-            channel_type=message.channel_type,
-            user_id=message.user_id,
-            content_length=len(message.content),
-        )
+        with _tracer.start_as_current_span(
+            "message.handle",
+            attributes={
+                "channel.type": message.channel_type,
+                "message.length": len(message.content),
+            },
+        ):
+            logger.info(
+                "message_received",
+                channel_type=message.channel_type,
+                user_id=message.user_id,
+                content_length=len(message.content),
+            )
 
-        # ── Normalise command prefix: '!' is the Slack-friendly alternative to '/'
-        # Slack intercepts messages starting with '/' and shows "not a valid command".
-        # Users can type '!k8s pods', '!help', etc. from Slack.
-        if message.content.startswith("!"):
-            message.content = "/" + message.content[1:]
+            # ── Normalise command prefix: '!' is the Slack-friendly alternative to '/'
+            # Slack intercepts messages starting with '/' and shows "not a valid command".
+            # Users can type '!k8s pods', '!help', etc. from Slack.
+            if message.content.startswith("!"):
+                message.content = "/" + message.content[1:]
 
-        # ── AIOps: check if this is an approval response first ────
-        if self.approval_manager and not message.content.startswith("/"):
-            try:
-                result = await self.approval_manager.process_response(
-                    message.content, message.user_id, message.user_id
-                )
-                if result is not None:
-                    # Send the approval_manager response back via router
-                    await self.router.send_message(
-                        message.channel_type, message.user_id, result
+            # ── AIOps: check if this is an approval response first ────
+            if self.approval_manager and not message.content.startswith("/"):
+                try:
+                    result = await self.approval_manager.process_response(
+                        message.content, message.user_id, message.user_id
                     )
-                    return  # message was an approval command
-            except Exception as e:
-                logger.warning("approval_process_response_error", error=str(e))
+                    if result is not None:
+                        # Send the approval_manager response back via router
+                        await self.router.send_message(
+                            message.channel_type, message.user_id, result
+                        )
+                        return  # message was an approval command
+                except Exception as e:
+                    logger.warning("approval_process_response_error", error=str(e))
 
-        # Check for commands
-        if message.content.startswith("/"):
-            await self._handle_command(message)
-            return
-        
-        # Check if it's a Kubernetes-related query
-        if self._is_kubernetes_query(message.content):
-            await self._handle_kubernetes_query(message)
-            return
-        
-        # Check if it's a security scanning query
-        if self._is_security_query(message.content):
-            await self._handle_security_query(message)
-            return
+            # Check for commands
+            if message.content.startswith("/"):
+                await self._handle_command(message)
+                return
 
-        # Process regular message
-        await self._process_message(message)
+            # Check if it's a Kubernetes-related query
+            if self._is_kubernetes_query(message.content):
+                await self._handle_kubernetes_query(message)
+                return
+
+            # Check if it's a security scanning query
+            if self._is_security_query(message.content):
+                await self._handle_security_query(message)
+                return
+
+            # Process regular message
+            await self._process_message(message)
 
     def _is_kubernetes_query(self, message_text: str) -> bool:
         """Check if message is related to Kubernetes."""

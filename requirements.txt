@@ -32,5 +32,15 @@ kubernetes-asyncio==29.0.0
 
 # AIOps - Metrics & Monitoring
 aiohttp==3.9.3
+aiohttp-socks>=0.7.1
 APScheduler==3.10.4
 prometheus-client==0.21.1
+
+# OpenTelemetry - distributed tracing
+opentelemetry-api==1.24.0
+opentelemetry-sdk==1.24.0
+opentelemetry-instrumentation-fastapi==0.45b0
+opentelemetry-instrumentation-sqlalchemy==0.45b0
+opentelemetry-instrumentation-redis==0.45b0
+opentelemetry-instrumentation-httpx==0.45b0
+opentelemetry-exporter-otlp-proto-grpc==1.24.0

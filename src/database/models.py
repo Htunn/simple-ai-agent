@@ -261,3 +261,38 @@ class AuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AuditLog {self.action} by {self.initiator} [{self.result}]>"
+
+
+class ApprovalAuditLog(Base):
+    """Persistent audit trail for every human-in-the-loop approval lifecycle event.
+
+    Unlike Redis (TTL-limited), this record survives indefinitely for compliance.
+    """
+
+    __tablename__ = "approval_audit_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    approval_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    tool_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(10), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    channel_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel_target: Mapped[str] = mapped_column(String(255), nullable=False)
+    # requested | approved | rejected | expired | executed | failed
+    event_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    actor: Mapped[str | None] = mapped_column(String(255), nullable=True)  # who approved/rejected
+    playbook_run_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    incident_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    tool_params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_approval_audit_approval_time", "approval_id", "timestamp"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ApprovalAuditLog {self.approval_id[:8]} {self.event_type} by {self.actor or self.requested_by}>"
