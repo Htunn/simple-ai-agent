@@ -25,14 +25,15 @@ _tracer = get_tracer(__name__)
 
 
 class RiskLevel(str, Enum):
-    LOW = "low"        # Execute immediately, notify after
+    LOW = "low"  # Execute immediately, notify after
     MEDIUM = "medium"  # Require human approval
-    HIGH = "high"      # Require human approval + explicit confirmation
+    HIGH = "high"  # Require human approval + explicit confirmation
 
 
 @dataclass
 class PlaybookStep:
     """A single step in a remediation playbook."""
+
     name: str
     description: str
     risk_level: RiskLevel
@@ -59,6 +60,7 @@ class PlaybookStep:
 @dataclass
 class Playbook:
     """A named collection of remediation steps."""
+
     id: str
     name: str
     description: str
@@ -70,11 +72,12 @@ class Playbook:
 @dataclass
 class PlaybookRun:
     """A running instance of a playbook for a specific incident."""
+
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     playbook_id: str = ""
     incident_context: dict[str, Any] = field(default_factory=dict)
     current_step: int = 0
-    status: str = "pending"   # pending | running | awaiting_approval | completed | failed
+    status: str = "pending"  # pending | running | awaiting_approval | completed | failed
     step_outputs: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -94,141 +97,183 @@ class PlaybookRegistry:
     def _register_defaults(self) -> None:
         """Register built-in remediation playbooks."""
 
-        self.register(Playbook(
-            id="crash_loop_remediation",
-            name="CrashLoop Remediation",
-            description="Diagnose and remediate a CrashLoopBackOff pod",
-            steps=[
-                PlaybookStep(
-                    name="Describe Pod",
-                    description="Gather pod conditions and events",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_describe_resource",
-                    tool_params_template={"resource_type": "pod", "resource_name": "{resource_name}", "namespace": "{namespace}"},
-                ),
-                PlaybookStep(
-                    name="Fetch Recent Logs",
-                    description="Get last 100 lines of logs for error analysis",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_analyze_logs",
-                    tool_params_template={"pod_name": "{resource_name}", "namespace": "{namespace}", "tail_lines": 100},
-                ),
-                PlaybookStep(
-                    name="Restart Pod",
-                    description="Delete pod to trigger fresh restart (controller will recreate)",
-                    risk_level=RiskLevel.MEDIUM,
-                    tool_name="k8s_restart_pod",
-                    tool_params_template={"pod_name": "{resource_name}", "namespace": "{namespace}"},
-                ),
-                PlaybookStep(
-                    name="Verify Recovery",
-                    description="Check pod status after restart",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_get_pods",
-                    tool_params_template={"namespace": "{namespace}", "label_selector": ""},
-                ),
-            ],
-        ))
+        self.register(
+            Playbook(
+                id="crash_loop_remediation",
+                name="CrashLoop Remediation",
+                description="Diagnose and remediate a CrashLoopBackOff pod",
+                steps=[
+                    PlaybookStep(
+                        name="Describe Pod",
+                        description="Gather pod conditions and events",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_describe_resource",
+                        tool_params_template={
+                            "resource_type": "pod",
+                            "resource_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Fetch Recent Logs",
+                        description="Get last 100 lines of logs for error analysis",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_analyze_logs",
+                        tool_params_template={
+                            "pod_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                            "tail_lines": 100,
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Restart Pod",
+                        description="Delete pod to trigger fresh restart (controller will recreate)",
+                        risk_level=RiskLevel.MEDIUM,
+                        tool_name="k8s_restart_pod",
+                        tool_params_template={
+                            "pod_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Verify Recovery",
+                        description="Check pod status after restart",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_get_pods",
+                        tool_params_template={"namespace": "{namespace}", "label_selector": ""},
+                    ),
+                ],
+            )
+        )
 
-        self.register(Playbook(
-            id="oom_kill_remediation",
-            name="OOMKill Remediation",
-            description="Increase memory limits for OOM-killed pods",
-            steps=[
-                PlaybookStep(
-                    name="Get Current Limits",
-                    description="Describe deployment to see current memory limits",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_describe_resource",
-                    tool_params_template={"resource_type": "deployment", "resource_name": "{resource_name}", "namespace": "{namespace}"},
-                ),
-                PlaybookStep(
-                    name="Increase Memory Limit",
-                    description="Patch deployment to increase memory limit by 50%",
-                    risk_level=RiskLevel.HIGH,
-                    tool_name="k8s_patch_resource",
-                    tool_params_template={
-                        "resource_type": "deployment",
-                        "resource_name": "{resource_name}",
-                        "namespace": "{namespace}",
-                        "patch": '{"spec":{"template":{"spec":{"containers":[{"name":"{resource_name}","resources":{"limits":{"memory":"1Gi"}}}]}}}}',
-                    },
-                ),
-            ],
-        ))
+        self.register(
+            Playbook(
+                id="oom_kill_remediation",
+                name="OOMKill Remediation",
+                description="Increase memory limits for OOM-killed pods",
+                steps=[
+                    PlaybookStep(
+                        name="Get Current Limits",
+                        description="Describe deployment to see current memory limits",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_describe_resource",
+                        tool_params_template={
+                            "resource_type": "deployment",
+                            "resource_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Increase Memory Limit",
+                        description="Patch deployment to increase memory limit by 50%",
+                        risk_level=RiskLevel.HIGH,
+                        tool_name="k8s_patch_resource",
+                        tool_params_template={
+                            "resource_type": "deployment",
+                            "resource_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                            "patch": '{"spec":{"template":{"spec":{"containers":[{"name":"{resource_name}","resources":{"limits":{"memory":"1Gi"}}}]}}}}',
+                        },
+                    ),
+                ],
+            )
+        )
 
-        self.register(Playbook(
-            id="deployment_rollback",
-            name="Deployment Rollback",
-            description="Roll back a failing deployment to the previous stable revision",
-            steps=[
-                PlaybookStep(
-                    name="Get Rollout History",
-                    description="Show deployment revisions available for rollback",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_get_rollout_history",
-                    tool_params_template={"deployment_name": "{resource_name}", "namespace": "{namespace}"},
-                ),
-                PlaybookStep(
-                    name="Rollback Deployment",
-                    description="Undo to previous stable revision",
-                    risk_level=RiskLevel.HIGH,
-                    tool_name="k8s_rollback_deployment",
-                    tool_params_template={"deployment_name": "{resource_name}", "namespace": "{namespace}"},
-                ),
-                PlaybookStep(
-                    name="Check Rollout Status",
-                    description="Verify rollback completed successfully",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_rollout_status",
-                    tool_params_template={"deployment_name": "{resource_name}", "namespace": "{namespace}"},
-                ),
-            ],
-        ))
+        self.register(
+            Playbook(
+                id="deployment_rollback",
+                name="Deployment Rollback",
+                description="Roll back a failing deployment to the previous stable revision",
+                steps=[
+                    PlaybookStep(
+                        name="Get Rollout History",
+                        description="Show deployment revisions available for rollback",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_get_rollout_history",
+                        tool_params_template={
+                            "deployment_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Rollback Deployment",
+                        description="Undo to previous stable revision",
+                        risk_level=RiskLevel.HIGH,
+                        tool_name="k8s_rollback_deployment",
+                        tool_params_template={
+                            "deployment_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Check Rollout Status",
+                        description="Verify rollback completed successfully",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_rollout_status",
+                        tool_params_template={
+                            "deployment_name": "{resource_name}",
+                            "namespace": "{namespace}",
+                        },
+                    ),
+                ],
+            )
+        )
 
-        self.register(Playbook(
-            id="node_not_ready_remediation",
-            name="Node NotReady Remediation",
-            description="Drain and cordon a NotReady node",
-            steps=[
-                PlaybookStep(
-                    name="Describe Node",
-                    description="Gather node conditions and events",
-                    risk_level=RiskLevel.LOW,
-                    tool_name="k8s_describe_resource",
-                    tool_params_template={"resource_type": "node", "resource_name": "{resource_name}", "namespace": ""},
-                ),
-                PlaybookStep(
-                    name="Cordon Node",
-                    description="Prevent new pods from scheduling on this node",
-                    risk_level=RiskLevel.MEDIUM,
-                    tool_name="k8s_cordon_node",
-                    tool_params_template={"node_name": "{resource_name}"},
-                ),
-                PlaybookStep(
-                    name="Drain Node",
-                    description="Evict all pods from the node",
-                    risk_level=RiskLevel.HIGH,
-                    tool_name="k8s_drain_node",
-                    tool_params_template={"node_name": "{resource_name}"},
-                ),
-            ],
-        ))
+        self.register(
+            Playbook(
+                id="node_not_ready_remediation",
+                name="Node NotReady Remediation",
+                description="Drain and cordon a NotReady node",
+                steps=[
+                    PlaybookStep(
+                        name="Describe Node",
+                        description="Gather node conditions and events",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="k8s_describe_resource",
+                        tool_params_template={
+                            "resource_type": "node",
+                            "resource_name": "{resource_name}",
+                            "namespace": "",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Cordon Node",
+                        description="Prevent new pods from scheduling on this node",
+                        risk_level=RiskLevel.MEDIUM,
+                        tool_name="k8s_cordon_node",
+                        tool_params_template={"node_name": "{resource_name}"},
+                    ),
+                    PlaybookStep(
+                        name="Drain Node",
+                        description="Evict all pods from the node",
+                        risk_level=RiskLevel.HIGH,
+                        tool_name="k8s_drain_node",
+                        tool_params_template={"node_name": "{resource_name}"},
+                    ),
+                ],
+            )
+        )
 
-        self.register(Playbook(
-            id="scale_up_on_load",
-            name="Scale Up Under Load",
-            description="Increase replica count when HPA has hit maxReplicas",
-            steps=[
-                PlaybookStep(
-                    name="Scale Deployment",
-                    description="Add replicas to handle increased load",
-                    risk_level=RiskLevel.MEDIUM,
-                    tool_name="k8s_scale_deployment",
-                    tool_params_template={"deployment": "{resource_name}", "namespace": "{namespace}", "replicas": "{target_replicas}"},
-                ),
-            ],
-        ))
+        self.register(
+            Playbook(
+                id="scale_up_on_load",
+                name="Scale Up Under Load",
+                description="Increase replica count when HPA has hit maxReplicas",
+                steps=[
+                    PlaybookStep(
+                        name="Scale Deployment",
+                        description="Add replicas to handle increased load",
+                        risk_level=RiskLevel.MEDIUM,
+                        tool_name="k8s_scale_deployment",
+                        tool_params_template={
+                            "deployment": "{resource_name}",
+                            "namespace": "{namespace}",
+                            "replicas": "{target_replicas}",
+                        },
+                    ),
+                ],
+            )
+        )
 
     def register(self, playbook: Playbook) -> None:
         self._playbooks[playbook.id] = playbook
@@ -244,13 +289,16 @@ class PlaybookRegistry:
                 "name": pb.name,
                 "description": pb.description,
                 "steps": len(pb.steps),
-                "requires_approval": any(s.risk_level in (RiskLevel.MEDIUM, RiskLevel.HIGH) for s in pb.steps),
+                "requires_approval": any(
+                    s.risk_level in (RiskLevel.MEDIUM, RiskLevel.HIGH) for s in pb.steps
+                ),
             }
             for pb in self._playbooks.values()
         ]
 
 
 # ── PlaybookExecutor ──────────────────────────────────────────────────────────
+
 
 class PlaybookExecutor:
     """
@@ -320,9 +368,13 @@ class PlaybookExecutor:
             },
         ) as span:
             run.status = "running"
-            logger.info("playbook_started", run_id=run.run_id, playbook=playbook_id,
-                        resource=incident_context.get("resource_name"),
-                        namespace=incident_context.get("namespace"))
+            logger.info(
+                "playbook_started",
+                run_id=run.run_id,
+                playbook=playbook_id,
+                resource=incident_context.get("resource_name"),
+                namespace=incident_context.get("namespace"),
+            )
 
             for i, step in enumerate(playbook.steps):
                 run.current_step = i
@@ -339,7 +391,9 @@ class PlaybookExecutor:
                         break
                     # Notify progress if callback available
                     if self._notify and channel_target:
-                        await self._safe_notify(channel_target, f"▶️ **{step.name}**: {output[:300]}")
+                        await self._safe_notify(
+                            channel_target, f"▶️ **{step.name}**: {output[:300]}"
+                        )
 
                 else:
                     # MEDIUM / HIGH — request approval and pause
@@ -357,12 +411,22 @@ class PlaybookExecutor:
                                 send_message_callback=self._notify,
                                 playbook_run_id=run.run_id,
                             )
-                            logger.info("playbook_awaiting_approval", run_id=run.run_id,
-                                        step=step.name, risk=step.risk_level.value)
+                            logger.info(
+                                "playbook_awaiting_approval",
+                                run_id=run.run_id,
+                                step=step.name,
+                                risk=step.risk_level.value,
+                            )
                         except Exception as e:
-                            logger.error("playbook_approval_request_failed",
-                                         run_id=run.run_id, step=step.name, error=str(e))
-                            run.step_outputs.append(f"⚠️ Step '{step.name}' approval request failed: {e}")
+                            logger.error(
+                                "playbook_approval_request_failed",
+                                run_id=run.run_id,
+                                step=step.name,
+                                error=str(e),
+                            )
+                            run.step_outputs.append(
+                                f"⚠️ Step '{step.name}' approval request failed: {e}"
+                            )
                             run.status = "failed"
                             run.error = str(e)
                     else:
@@ -376,8 +440,12 @@ class PlaybookExecutor:
 
             if run.status == "running":
                 run.status = "completed"
-                logger.info("playbook_completed", run_id=run.run_id,
-                            playbook=playbook_id, steps_executed=len(run.step_outputs))
+                logger.info(
+                    "playbook_completed",
+                    run_id=run.run_id,
+                    playbook=playbook_id,
+                    steps_executed=len(run.step_outputs),
+                )
 
             span.set_attribute("playbook.final_status", run.status)
             span.set_attribute("playbook.steps_executed", len(run.step_outputs))
@@ -398,8 +466,13 @@ class PlaybookExecutor:
         params: dict[str, Any],
     ) -> str:
         """Execute a single LOW-risk step via MCP and return a summary string."""
-        logger.info("playbook_step_running", run_id=run.run_id,
-                    step=step.name, tool=step.tool_name, params=params)
+        logger.info(
+            "playbook_step_running",
+            run_id=run.run_id,
+            step=step.name,
+            tool=step.tool_name,
+            params=params,
+        )
         if not self._mcp:
             return f"⚠️ '{step.name}' skipped — MCP manager not available"
 
@@ -414,24 +487,28 @@ class PlaybookExecutor:
             # Validate output against success_pattern if defined
             if step.success_pattern:
                 import re as _re
+
                 if not _re.search(step.success_pattern, output):
-                    logger.error("playbook_step_pattern_mismatch",
-                                 run_id=run.run_id, step=step.name,
-                                 pattern=step.success_pattern)
+                    logger.error(
+                        "playbook_step_pattern_mismatch",
+                        run_id=run.run_id,
+                        step=step.name,
+                        pattern=step.success_pattern,
+                    )
                     run.status = "failed"
                     run.error = f"Step '{step.name}' output did not match success_pattern '{step.success_pattern}'"
                     return f"❌ {step.name}: output did not match success pattern"
             logger.info("playbook_step_completed", run_id=run.run_id, step=step.name)
             return f"✅ {step.name}: {output}"
         except asyncio.TimeoutError:
-            logger.error("playbook_step_timeout",
-                         run_id=run.run_id, step=step.name, timeout_seconds=timeout)
+            logger.error(
+                "playbook_step_timeout", run_id=run.run_id, step=step.name, timeout_seconds=timeout
+            )
             run.status = "failed"
             run.error = f"Step '{step.name}' timed out after {timeout}s"
             return f"❌ {step.name}: timed out after {timeout}s"
         except Exception as e:
-            logger.error("playbook_step_failed",
-                         run_id=run.run_id, step=step.name, error=str(e))
+            logger.error("playbook_step_failed", run_id=run.run_id, step=step.name, error=str(e))
             run.status = "failed"
             run.error = str(e)
             return f"❌ {step.name}: {e}"

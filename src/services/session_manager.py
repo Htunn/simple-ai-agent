@@ -53,14 +53,10 @@ class SessionManager:
             return SessionData(**cached)
 
         # Get or create user
-        user = await self.user_repo.get_or_create(
-            channel_type, channel_user_id, username
-        )
+        user = await self.user_repo.get_or_create(channel_type, channel_user_id, username)
 
         # Get or create active conversation
-        conversation = await self.conversation_repo.get_or_create_active(
-            user.id, channel_type
-        )
+        conversation = await self.conversation_repo.get_or_create_active(user.id, channel_type)
 
         # Create session data
         session_data = SessionData(
@@ -90,24 +86,18 @@ class SessionManager:
             await self.cache.hset(cache_key, key, str(value))
         await self.cache.expire(cache_key, settings.session_ttl_seconds)
 
-    async def update_session_activity(
-        self, channel_type: str, channel_user_id: str
-    ) -> None:
+    async def update_session_activity(self, channel_type: str, channel_user_id: str) -> None:
         """Update session last activity timestamp."""
         cache_key = self._session_key(channel_type, channel_user_id)
         session_data = await self.get_or_create_session(channel_type, channel_user_id)
 
         # Update in database
-        await self.conversation_repo.update_activity(
-            uuid.UUID(session_data.conversation_id)
-        )
+        await self.conversation_repo.update_activity(uuid.UUID(session_data.conversation_id))
 
         # Update cache TTL
         await self.cache.expire(cache_key, settings.session_ttl_seconds)
 
-    async def increment_message_count(
-        self, channel_type: str, channel_user_id: str
-    ) -> int:
+    async def increment_message_count(self, channel_type: str, channel_user_id: str) -> int:
         """Increment message count in session."""
         cache_key = self._session_key(channel_type, channel_user_id)
         count_str = await self.cache.hget(cache_key, "message_count")
@@ -122,9 +112,7 @@ class SessionManager:
         session_data = await self.get_or_create_session(channel_type, channel_user_id)
 
         # Deactivate conversation
-        await self.conversation_repo.deactivate(
-            uuid.UUID(session_data.conversation_id)
-        )
+        await self.conversation_repo.deactivate(uuid.UUID(session_data.conversation_id))
 
         # Clear cache
         await self.cache.delete(cache_key)
@@ -135,9 +123,7 @@ class SessionManager:
             channel_type=channel_type,
         )
 
-    async def get_conversation_id(
-        self, channel_type: str, channel_user_id: str
-    ) -> uuid.UUID:
+    async def get_conversation_id(self, channel_type: str, channel_user_id: str) -> uuid.UUID:
         """Get conversation ID for a session."""
         session_data = await self.get_or_create_session(channel_type, channel_user_id)
         return uuid.UUID(session_data.conversation_id)

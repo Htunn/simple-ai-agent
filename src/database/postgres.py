@@ -3,7 +3,12 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.config import get_settings
 from src.database.models import Base
@@ -17,11 +22,11 @@ engine: AsyncEngine = create_async_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
-    pool_recycle=1800,          # Recycle connections after 30 min to prevent stale handles
-    pool_timeout=30,            # Raise after 30 s if no connection is available
+    pool_recycle=1800,  # Recycle connections after 30 min to prevent stale handles
+    pool_timeout=30,  # Raise after 30 s if no connection is available
     connect_args={
         "server_settings": {
-            "statement_timeout": "30000",   # 30 s per-query hard limit
+            "statement_timeout": "30000",  # 30 s per-query hard limit
             "idle_in_transaction_session_timeout": "60000",  # 60 s idle-in-txn
         }
     },

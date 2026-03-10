@@ -45,24 +45,18 @@ class ChannelConfigRepository:
         )
         return config
 
-    async def get_or_create(
-        self, channel_type: str, default_model: str
-    ) -> ChannelConfig:
+    async def get_or_create(self, channel_type: str, default_model: str) -> ChannelConfig:
         """Get existing config or create new one."""
         config = await self.get_by_channel_type(channel_type)
         if config is None:
             config = await self.create(channel_type, default_model)
         return config
 
-    async def update_default_model(
-        self, channel_type: str, model: str
-    ) -> Optional[ChannelConfig]:
+    async def update_default_model(self, channel_type: str, model: str) -> Optional[ChannelConfig]:
         """Update default model for a channel."""
         config = await self.get_by_channel_type(channel_type)
         if config:
             config.default_model = model
             await self.session.flush()
-            logger.info(
-                "channel_model_updated", channel_type=channel_type, model=model
-            )
+            logger.info("channel_model_updated", channel_type=channel_type, model=model)
         return config

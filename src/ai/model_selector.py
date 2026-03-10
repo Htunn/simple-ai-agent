@@ -7,7 +7,11 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
-from src.database.repositories import ChannelConfigRepository, ConversationRepository, UserRepository
+from src.database.repositories import (
+    ChannelConfigRepository,
+    ConversationRepository,
+    UserRepository,
+)
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -86,13 +90,9 @@ class ModelSelector:
         user = await self.user_repo.update_preferred_model(user_id, model)
         return user is not None
 
-    async def set_conversation_model(
-        self, conversation_id: uuid.UUID, model: str
-    ) -> bool:
+    async def set_conversation_model(self, conversation_id: uuid.UUID, model: str) -> bool:
         """Set conversation model override."""
-        conversation = await self.conversation_repo.set_model_override(
-            conversation_id, model
-        )
+        conversation = await self.conversation_repo.set_model_override(conversation_id, model)
         return conversation is not None
 
     async def set_channel_default(self, channel_type: str, model: str) -> bool:

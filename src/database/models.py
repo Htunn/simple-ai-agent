@@ -4,7 +4,18 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -20,9 +31,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     channel_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     channel_user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -42,12 +51,8 @@ class Conversation(Base):
 
     __tablename__ = "conversations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     channel_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     model_override: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="Override model for this conversation"
@@ -76,15 +81,11 @@ class Message(Base):
 
     __tablename__ = "messages"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, index=True
     )
-    role: Mapped[str] = mapped_column(
-        String(20), nullable=False, comment="user, assistant, system"
-    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False, comment="user, assistant, system")
     content: Mapped[str] = mapped_column(Text, nullable=False)
     model_used: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="AI model used for this message"
@@ -106,12 +107,8 @@ class ChannelConfig(Base):
 
     __tablename__ = "channel_configs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    channel_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, unique=True, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    channel_type: Mapped[str] = mapped_column(String(20), nullable=False, unique=True, index=True)
     default_model: Mapped[str] = mapped_column(
         String(50), nullable=False, comment="Default model for this channel"
     )
@@ -155,11 +152,11 @@ class Incident(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
-
-    __table_args__ = (
-        Index("ix_incidents_status_created", "status", "created_at"),
+    extra_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
     )
+
+    __table_args__ = (Index("ix_incidents_status_created", "status", "created_at"),)
 
     def __repr__(self) -> str:
         return f"<Incident {self.severity} {self.event_type}/{self.resource_name} [{self.status}]>"
@@ -171,15 +168,21 @@ class AlertEvent(Base):
     __tablename__ = "alert_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    incident_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    incident_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
     rule_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="warning", index=True)
     # firing | resolved
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="firing")
     # prometheus | alertmanager | watchloop | manual
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="watchloop")
-    labels: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
-    annotations: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
+    labels: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
+    annotations: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
     fired_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
@@ -195,7 +198,9 @@ class RemediationAction(Base):
     __tablename__ = "remediation_actions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    incident_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    incident_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
     playbook_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     playbook_run_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     action_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
@@ -212,7 +217,9 @@ class RemediationAction(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     output: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
-    extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
+    extra_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
 
     def __repr__(self) -> str:
         return f"<RemediationAction {self.action_type} [{self.status}]>"
@@ -228,7 +235,9 @@ class K8sStateSnapshot(Base):
     resource_kind: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     resource_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    snapshot_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
+    snapshot_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
@@ -257,7 +266,9 @@ class AuditLog(Base):
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
-    extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
+    extra_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
 
     def __repr__(self) -> str:
         return f"<AuditLog {self.action} by {self.initiator} [{self.result}]>"
@@ -284,15 +295,15 @@ class ApprovalAuditLog(Base):
     actor: Mapped[str | None] = mapped_column(String(255), nullable=True)  # who approved/rejected
     playbook_run_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     incident_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    tool_params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False, server_default="{}")
+    tool_params: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    __table_args__ = (
-        Index("ix_approval_audit_approval_time", "approval_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_approval_audit_approval_time", "approval_id", "timestamp"),)
 
     def __repr__(self) -> str:
         return f"<ApprovalAuditLog {self.approval_id[:8]} {self.event_type} by {self.actor or self.requested_by}>"

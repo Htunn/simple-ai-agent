@@ -114,7 +114,9 @@ build_info = Info(
     "Build / version metadata for the AI agent",
 )
 
-build_info.info({
-    "version": "0.1.0",
-    "environment": "production",
-})
+build_info.info(
+    {
+        "version": "0.1.0",
+        "environment": "production",
+    }
+)

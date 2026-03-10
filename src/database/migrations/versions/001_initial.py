@@ -5,6 +5,7 @@ Revises:
 Create Date: 2026-02-02 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -65,9 +66,7 @@ def upgrade() -> None:
     op.create_table(
         "messages",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "conversation_id", postgresql.UUID(as_uuid=True), nullable=False, index=True
-        ),
+        sa.Column("conversation_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column("role", sa.String(20), nullable=False),
         sa.Column("content", sa.Text, nullable=False),
         sa.Column("model_used", sa.String(50), nullable=True),
@@ -80,9 +79,7 @@ def upgrade() -> None:
         ),
         sa.Column("token_count", sa.Integer, nullable=True),
         sa.Column("extra_data", postgresql.JSON, server_default="{}", nullable=False),
-        sa.ForeignKeyConstraint(
-            ["conversation_id"], ["conversations.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
     )
 
     # Create channel_configs table

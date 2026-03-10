@@ -24,8 +24,9 @@ settings = get_settings()
 @dataclass
 class ClusterEvent:
     """A detected cluster anomaly event."""
-    event_type: str          # crash_loop | not_ready_node | replication_failure | oom_killed
-    severity: str            # critical | warning | info
+
+    event_type: str  # crash_loop | not_ready_node | replication_failure | oom_killed
+    severity: str  # critical | warning | info
     namespace: str
     resource_kind: str
     resource_name: str
@@ -80,7 +81,9 @@ class K8sWatchLoop:
         self._task: asyncio.Task | None = None
         self._consumer_task: asyncio.Task | None = None
         self._event_queue: asyncio.Queue[ClusterEvent] = asyncio.Queue(maxsize=100)
-        self._known_issues: dict[str, datetime] = {}  # resource_key -> first_seen, to avoid duplicate alerts
+        self._known_issues: dict[str, datetime] = (
+            {}
+        )  # resource_key -> first_seen, to avoid duplicate alerts
         self._k8s: "KubernetesClient | None" = None
         self._consecutive_failures: int = 0  # all-check failure counter for backoff
 
@@ -90,9 +93,13 @@ class K8sWatchLoop:
             return
         try:
             from src.k8s.client import get_k8s_client
+
             self._k8s = await get_k8s_client()
             if not self._k8s.is_available:
-                logger.warning("watchloop_k8s_unavailable", msg="K8s client not initialized, watchloop disabled")
+                logger.warning(
+                    "watchloop_k8s_unavailable",
+                    msg="K8s client not initialized, watchloop disabled",
+                )
                 return
         except Exception as e:
             logger.warning("watchloop_k8s_init_failed", error=str(e))
@@ -100,7 +107,9 @@ class K8sWatchLoop:
 
         self._running = True
         self._task = asyncio.create_task(self._run(), name="k8s-watchloop")
-        self._consumer_task = asyncio.create_task(self._consume_events(), name="k8s-watchloop-consumer")
+        self._consumer_task = asyncio.create_task(
+            self._consume_events(), name="k8s-watchloop-consumer"
+        )
         logger.info("k8s_watchloop_started", interval_seconds=self._interval)
 
     async def stop(self) -> None:
@@ -169,16 +178,22 @@ class K8sWatchLoop:
                     self._known_issues[key] = datetime.now(timezone.utc)
                     status = pod.get("status", "CrashLoopBackOff")
                     # Error (terminated non-zero) and OOMKilled are also critical
-                    severity = "critical" if "CrashLoop" in status or "OOM" in status or status in ("Error", "Failed") else "warning"
-                    events.append(ClusterEvent(
-                        event_type="crash_loop" if "OOM" not in status else "oom_killed",
-                        severity=severity,
-                        namespace=pod["namespace"],
-                        resource_kind="Pod",
-                        resource_name=pod["name"],
-                        message=f"Pod {pod['name']} in {pod['namespace']} is {status} (restarts: {pod.get('restarts', 0)})",
-                        labels=pod.get("labels", {}),
-                    ))
+                    severity = (
+                        "critical"
+                        if "CrashLoop" in status or "OOM" in status or status in ("Error", "Failed")
+                        else "warning"
+                    )
+                    events.append(
+                        ClusterEvent(
+                            event_type="crash_loop" if "OOM" not in status else "oom_killed",
+                            severity=severity,
+                            namespace=pod["namespace"],
+                            resource_kind="Pod",
+                            resource_name=pod["name"],
+                            message=f"Pod {pod['name']} in {pod['namespace']} is {status} (restarts: {pod.get('restarts', 0)})",
+                            labels=pod.get("labels", {}),
+                        )
+                    )
                 # Clear resolved pods from known issues
                 elif pod.get("status") not in ("CrashLoopBackOff", "Error", "OOMKilled"):
                     self._known_issues.pop(key, None)
@@ -201,15 +216,17 @@ class K8sWatchLoop:
                 key = f"node/{node['name']}"
                 if key not in self._known_issues:
                     self._known_issues[key] = datetime.now(timezone.utc)
-                    events.append(ClusterEvent(
-                        event_type="not_ready_node",
-                        severity="critical",
-                        namespace="",
-                        resource_kind="Node",
-                        resource_name=node["name"],
-                        message=f"Node {node['name']} is NotReady",
-                        labels=node.get("labels", {}),
-                    ))
+                    events.append(
+                        ClusterEvent(
+                            event_type="not_ready_node",
+                            severity="critical",
+                            namespace="",
+                            resource_kind="Node",
+                            resource_name=node["name"],
+                            message=f"Node {node['name']} is NotReady",
+                            labels=node.get("labels", {}),
+                        )
+                    )
         except Exception as e:
             checks_failed += 1
             logger.warning("watchloop_node_check_error", error=str(e))
@@ -230,22 +247,26 @@ class K8sWatchLoop:
                         current_failed_deployments.add(key)
                         if key not in self._known_issues:
                             self._known_issues[key] = datetime.now(timezone.utc)
-                            events.append(ClusterEvent(
-                                event_type="replication_failure",
-                                severity="critical",
-                                namespace=ns_name,
-                                resource_kind="Deployment",
-                                resource_name=dep["name"],
-                                message=f"Deployment {dep['name']} in {ns_name} has 0/{dep['replicas']} replicas available",
-                                labels=dep.get("labels", {}),
-                            ))
+                            events.append(
+                                ClusterEvent(
+                                    event_type="replication_failure",
+                                    severity="critical",
+                                    namespace=ns_name,
+                                    resource_kind="Deployment",
+                                    resource_name=dep["name"],
+                                    message=f"Deployment {dep['name']} in {ns_name} has 0/{dep['replicas']} replicas available",
+                                    labels=dep.get("labels", {}),
+                                )
+                            )
 
             # Clean up recovered deployments
             for key in list(self._known_issues):
                 if key.startswith("deployment/") and key not in current_failed_deployments:
                     self._known_issues.pop(key, None)
                     _, ns_name, dep_name = key.split("/", 2)
-                    logger.info("watchloop_deployment_recovered", deployment=dep_name, namespace=ns_name)
+                    logger.info(
+                        "watchloop_deployment_recovered", deployment=dep_name, namespace=ns_name
+                    )
 
         except Exception as e:
             checks_failed += 1
@@ -257,7 +278,8 @@ class K8sWatchLoop:
             self._consecutive_failures += 1
             if self._consecutive_failures >= self._FAILURE_THRESHOLD:
                 new_interval = min(
-                    self._base_interval * (2 ** (self._consecutive_failures - self._FAILURE_THRESHOLD + 1)),
+                    self._base_interval
+                    * (2 ** (self._consecutive_failures - self._FAILURE_THRESHOLD + 1)),
                     self._MAX_BACKOFF_SECONDS,
                 )
                 if new_interval != self._interval:
@@ -282,15 +304,19 @@ class K8sWatchLoop:
         # Publish events via bounded queue (backpressure: drop if full)
         dropped = 0
         for event in events:
-            logger.info("watchloop_event_detected", event_type=event.event_type,
-                       resource=f"{event.resource_kind}/{event.resource_name}",
-                       severity=event.severity)
+            logger.info(
+                "watchloop_event_detected",
+                event_type=event.event_type,
+                resource=f"{event.resource_kind}/{event.resource_name}",
+                severity=event.severity,
+            )
             try:
                 self._event_queue.put_nowait(event)
             except asyncio.QueueFull:
                 dropped += 1
-                logger.warning("watchloop_event_queue_full", dropped=dropped,
-                               event_type=event.event_type)
+                logger.warning(
+                    "watchloop_event_queue_full", dropped=dropped, event_type=event.event_type
+                )
 
         if events:
             logger.info("watchloop_tick_complete", events_detected=len(events), dropped=dropped)

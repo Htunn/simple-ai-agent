@@ -32,9 +32,7 @@ class TelegramAdapter(ChannelAdapter):
         # Add handlers - handle ALL text messages in groups and private chats
         # In groups, bot needs privacy mode disabled OR will only see mentions/replies
         # filters.TEXT catches both commands (/k8s) and regular text messages
-        self.application.add_handler(
-            MessageHandler(filters.TEXT, self._handle_message)
-        )
+        self.application.add_handler(MessageHandler(filters.TEXT, self._handle_message))
 
         logger.info("telegram_application_initialized")
 
@@ -63,21 +61,21 @@ class TelegramAdapter(ChannelAdapter):
 
         message = event.message
         content = message.text or ""
-        
+
         # In groups, remove bot mentions from the message (e.g., @botname)
         # This allows natural language queries and commands to work properly
-        if message.chat.type in ['group', 'supergroup']:
+        if message.chat.type in ["group", "supergroup"]:
             # Get bot username from the application
             if self.application and self.application.bot:
                 bot_username = self.application.bot.username
                 if bot_username:
                     # Remove @botname mentions (handles @botname at start or in middle)
-                    content = content.replace(f'@{bot_username}', '').strip()
+                    content = content.replace(f"@{bot_username}", "").strip()
                     # Also remove bot's first name if mentioned
                     bot_first_name = self.application.bot.first_name
                     if bot_first_name:
-                        content = content.replace(f'@{bot_first_name}', '').strip()
-            
+                        content = content.replace(f"@{bot_first_name}", "").strip()
+
             logger.debug(
                 "telegram_group_message",
                 chat_id=message.chat_id,
@@ -107,9 +105,7 @@ class TelegramAdapter(ChannelAdapter):
             if len(content) > 4096:
                 chunks = [content[i : i + 4096] for i in range(0, len(content), 4096)]
                 for chunk in chunks:
-                    await self.application.bot.send_message(
-                        chat_id=chat_id, text=chunk
-                    )
+                    await self.application.bot.send_message(chat_id=chat_id, text=chunk)
             else:
                 await self.application.bot.send_message(chat_id=chat_id, text=content)
 

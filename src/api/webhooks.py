@@ -109,11 +109,14 @@ async def slack_webhook(request: Request) -> dict:
                     raise HTTPException(status_code=400, detail="Request too old")
 
                 sig_basestring = f"v0:{timestamp}:{body_bytes.decode()}"
-                expected_signature = "v0=" + hmac.new(
-                    settings.slack_signing_secret.encode(),
-                    sig_basestring.encode(),
-                    hashlib.sha256,
-                ).hexdigest()
+                expected_signature = (
+                    "v0="
+                    + hmac.new(
+                        settings.slack_signing_secret.encode(),
+                        sig_basestring.encode(),
+                        hashlib.sha256,
+                    ).hexdigest()
+                )
 
                 if not hmac.compare_digest(expected_signature, signature):
                     raise HTTPException(status_code=400, detail="Invalid signature")
@@ -126,6 +129,7 @@ async def slack_webhook(request: Request) -> dict:
             if event_id:
                 try:
                     from src.database.redis import get_redis
+
                     redis = get_redis()
                     dedupe_key = f"slack:event:{event_id}"
                     # SET NX with 5-minute expiry — returns True only on first call
@@ -223,7 +227,11 @@ async def alertmanager_webhook(
                 # Parse timestamps
                 fired_at_str = alert.get("startsAt")
                 resolved_at_str = alert.get("endsAt")
-                fired_at = datetime.fromisoformat(fired_at_str.replace("Z", "+00:00")) if fired_at_str else datetime.now(timezone.utc)
+                fired_at = (
+                    datetime.fromisoformat(fired_at_str.replace("Z", "+00:00"))
+                    if fired_at_str
+                    else datetime.now(timezone.utc)
+                )
                 resolved_at = None
                 if resolved_at_str and status == "resolved":
                     resolved_at = datetime.fromisoformat(resolved_at_str.replace("Z", "+00:00"))

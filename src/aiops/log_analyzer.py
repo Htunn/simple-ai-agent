@@ -60,7 +60,9 @@ class LogAnalysisResult:
             "**Detected Patterns:**",
         ]
         for match in self.detected_patterns:
-            severity_emoji = {"CRITICAL": "🔴", "ERROR": "🟠", "WARNING": "🟡"}.get(match.severity.value, "ℹ️")
+            severity_emoji = {"CRITICAL": "🔴", "ERROR": "🟠", "WARNING": "🟡"}.get(
+                match.severity.value, "ℹ️"
+            )
             lines.append(f"{severity_emoji} **{match.pattern_name}** ({match.count} occurrences)")
             for line in match.matched_lines[:2]:
                 lines.append(f"  `{line[:120]}`")
@@ -75,34 +77,64 @@ class LogAnalysisResult:
 
 PATTERNS: list[tuple[str, LogSeverity, str]] = [
     # (pattern_name, severity, regex)
-    ("OOMKill", LogSeverity.CRITICAL,
-     r"(?i)(oom.?kill|out.?of.?memory|cannot allocate memory|kill process)"),
-    ("Segfault", LogSeverity.CRITICAL,
-     r"(?i)(segmentation fault|SIGSEGV|core dumped)"),
-    ("Panic", LogSeverity.CRITICAL,
-     r"(?i)(panic:|PANIC |fatal error:|FATAL )"),
-    ("Java StackTrace", LogSeverity.ERROR,
-     r"(?i)(Exception in thread|java\.lang\.|at com\.|at org\.|Caused by:)"),
-    ("Python Traceback", LogSeverity.ERROR,
-     r"(?i)(Traceback \(most recent call last\)|File \".*\", line \d+)"),
-    ("Connection Refused", LogSeverity.ERROR,
-     r"(?i)(connection refused|ECONNREFUSED|could not connect)"),
-    ("Connection Timeout", LogSeverity.ERROR,
-     r"(?i)(connection timed out|ETIMEDOUT|dial tcp.*timeout|context deadline exceeded)"),
-    ("DNS Failure", LogSeverity.ERROR,
-     r"(?i)(no such host|DNS resolution failed|name resolution|getaddrinfo|NXDOMAIN)"),
-    ("TLS/SSL Error", LogSeverity.ERROR,
-     r"(?i)(tls handshake|ssl error|certificate verify|x509:|bad certificate)"),
-    ("Authentication Failed", LogSeverity.ERROR,
-     r"(?i)(authentication failed|unauthorized|invalid token|access denied|permission denied)"),
-    ("Disk Full", LogSeverity.CRITICAL,
-     r"(?i)(no space left on device|disk full|ENOSPC)"),
-    ("File Not Found", LogSeverity.WARNING,
-     r"(?i)(no such file or directory|file not found|ENOENT)"),
-    ("Port Already In Use", LogSeverity.ERROR,
-     r"(?i)(address already in use|EADDRINUSE|bind: address)"),
-    ("Database Error", LogSeverity.ERROR,
-     r"(?i)(database error|db connection|SQL error|query failed|deadlock detected|too many connections)"),
+    (
+        "OOMKill",
+        LogSeverity.CRITICAL,
+        r"(?i)(oom.?kill|out.?of.?memory|cannot allocate memory|kill process)",
+    ),
+    ("Segfault", LogSeverity.CRITICAL, r"(?i)(segmentation fault|SIGSEGV|core dumped)"),
+    ("Panic", LogSeverity.CRITICAL, r"(?i)(panic:|PANIC |fatal error:|FATAL )"),
+    (
+        "Java StackTrace",
+        LogSeverity.ERROR,
+        r"(?i)(Exception in thread|java\.lang\.|at com\.|at org\.|Caused by:)",
+    ),
+    (
+        "Python Traceback",
+        LogSeverity.ERROR,
+        r"(?i)(Traceback \(most recent call last\)|File \".*\", line \d+)",
+    ),
+    (
+        "Connection Refused",
+        LogSeverity.ERROR,
+        r"(?i)(connection refused|ECONNREFUSED|could not connect)",
+    ),
+    (
+        "Connection Timeout",
+        LogSeverity.ERROR,
+        r"(?i)(connection timed out|ETIMEDOUT|dial tcp.*timeout|context deadline exceeded)",
+    ),
+    (
+        "DNS Failure",
+        LogSeverity.ERROR,
+        r"(?i)(no such host|DNS resolution failed|name resolution|getaddrinfo|NXDOMAIN)",
+    ),
+    (
+        "TLS/SSL Error",
+        LogSeverity.ERROR,
+        r"(?i)(tls handshake|ssl error|certificate verify|x509:|bad certificate)",
+    ),
+    (
+        "Authentication Failed",
+        LogSeverity.ERROR,
+        r"(?i)(authentication failed|unauthorized|invalid token|access denied|permission denied)",
+    ),
+    ("Disk Full", LogSeverity.CRITICAL, r"(?i)(no space left on device|disk full|ENOSPC)"),
+    (
+        "File Not Found",
+        LogSeverity.WARNING,
+        r"(?i)(no such file or directory|file not found|ENOENT)",
+    ),
+    (
+        "Port Already In Use",
+        LogSeverity.ERROR,
+        r"(?i)(address already in use|EADDRINUSE|bind: address)",
+    ),
+    (
+        "Database Error",
+        LogSeverity.ERROR,
+        r"(?i)(database error|db connection|SQL error|query failed|deadlock detected|too many connections)",
+    ),
 ]
 
 
@@ -153,12 +185,14 @@ class LogAnalyzer:
                     raw_errors.extend(matched_lines[:3])
                 elif severity == LogSeverity.WARNING:
                     warning_count += len(matched_lines)
-                detected.append(LogMatch(
-                    pattern_name=name,
-                    severity=severity,
-                    matched_lines=matched_lines[:5],
-                    count=len(matched_lines),
-                ))
+                detected.append(
+                    LogMatch(
+                        pattern_name=name,
+                        severity=severity,
+                        matched_lines=matched_lines[:5],
+                        count=len(matched_lines),
+                    )
+                )
 
         # Sort by severity
         severity_order = {LogSeverity.CRITICAL: 0, LogSeverity.ERROR: 1, LogSeverity.WARNING: 2}

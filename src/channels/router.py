@@ -38,9 +38,7 @@ class MessageRouter:
         else:
             logger.warning("no_message_handler_configured")
 
-    async def send_message(
-        self, channel_type: str, user_id: str, content: str
-    ) -> bool:
+    async def send_message(self, channel_type: str, user_id: str, content: str) -> bool:
         """Send message through appropriate channel adapter."""
         adapter = self.adapters.get(channel_type)
         if not adapter:

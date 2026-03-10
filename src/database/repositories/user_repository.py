@@ -18,9 +18,7 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_channel_user(
-        self, channel_type: str, channel_user_id: str
-    ) -> Optional[User]:
+    async def get_by_channel_user(self, channel_type: str, channel_user_id: str) -> Optional[User]:
         """Get user by channel type and channel user ID."""
         result = await self.session.execute(
             select(User).where(
@@ -68,9 +66,7 @@ class UserRepository:
             user = await self.create(channel_type, channel_user_id, username)
         return user
 
-    async def update_preferred_model(
-        self, user_id: uuid.UUID, model: str
-    ) -> Optional[User]:
+    async def update_preferred_model(self, user_id: uuid.UUID, model: str) -> Optional[User]:
         """Update user's preferred model."""
         user = await self.get_by_id(user_id)
         if user:

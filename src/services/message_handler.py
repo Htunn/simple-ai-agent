@@ -22,25 +22,86 @@ _tracer = get_tracer(__name__)
 
 # Kubernetes keywords for detection
 K8S_KEYWORDS = [
-    'pod', 'pods', 'deployment', 'deployments', 'service', 'services',
-    'namespace', 'namespaces', 'node', 'nodes', 'kubectl', 'k8s', 'kubernetes',
-    'helm', 'container', 'containers', 'scale', 'configmap', 'secret',
-    'ingress', 'pvc', 'persistentvolume', 'statefulset', 'daemonset',
+    "pod",
+    "pods",
+    "deployment",
+    "deployments",
+    "service",
+    "services",
+    "namespace",
+    "namespaces",
+    "node",
+    "nodes",
+    "kubectl",
+    "k8s",
+    "kubernetes",
+    "helm",
+    "container",
+    "containers",
+    "scale",
+    "configmap",
+    "secret",
+    "ingress",
+    "pvc",
+    "persistentvolume",
+    "statefulset",
+    "daemonset",
     # AIOps self-healing verbs
-    'restart', 'rollback', 'drain', 'cordon', 'uncordon', 'taint',
-    'evict', 'analyze logs', 'crashloop', 'crashlooping', 'crashing',
-    'oomkill', 'oom killed', 'not ready', 'notready', 'patch resource',
-    'runbook', 'playbook', 'rca', 'root cause', 'remediat',
+    "restart",
+    "rollback",
+    "drain",
+    "cordon",
+    "uncordon",
+    "taint",
+    "evict",
+    "analyze logs",
+    "crashloop",
+    "crashlooping",
+    "crashing",
+    "oomkill",
+    "oom killed",
+    "not ready",
+    "notready",
+    "patch resource",
+    "runbook",
+    "playbook",
+    "rca",
+    "root cause",
+    "remediat",
 ]
 
 # Security scanning keywords for detection (simplePortChecker tools)
 SECURITY_KEYWORDS = [
-    'port', 'ports', 'open', 'closed', 'listening', 'scan',
-    'security', 'certificate', 'cert', 'ssl', 'tls', 'https',
-    'waf', 'cdn', 'cloudflare', 'protection', 'firewall',
-    'mtls', 'mutual', 'owasp', 'vulnerability', 'vulnerabilities',
-    'headers', 'security headers', 'hsts', 'csp', 'cors',
-    'azure', 'hybrid identity', 'tenant'
+    "port",
+    "ports",
+    "open",
+    "closed",
+    "listening",
+    "scan",
+    "security",
+    "certificate",
+    "cert",
+    "ssl",
+    "tls",
+    "https",
+    "waf",
+    "cdn",
+    "cloudflare",
+    "protection",
+    "firewall",
+    "mtls",
+    "mutual",
+    "owasp",
+    "vulnerability",
+    "vulnerabilities",
+    "headers",
+    "security headers",
+    "hsts",
+    "csp",
+    "cors",
+    "azure",
+    "hybrid identity",
+    "tenant",
 ]
 
 
@@ -61,26 +122,26 @@ class MessageHandler:
             "message_handler_initialized",
             mcp_enabled=mcp_manager is not None,
         )
-    
+
     def _format_kubectl_table(self, output: str, resource_type: str = "pods") -> str:
         """
         Format kubectl table output for better readability in chat.
-        
+
         Args:
             output: Raw kubectl output
             resource_type: Type of resource (pods, nodes, deployments, etc.)
-            
+
         Returns:
             Formatted string for chat display
         """
-        lines = output.strip().split('\n')
+        lines = output.strip().split("\n")
         if len(lines) <= 1:
             return output
-        
+
         # Parse header and rows
         header_line = lines[0]
         data_lines = lines[1:]
-        
+
         # For pods, show key information in a compact format
         if resource_type == "pods":
             formatted = []
@@ -91,19 +152,19 @@ class MessageHandler:
                 min_cols = 6 if has_ns_col else 5
                 if len(parts) >= min_cols:
                     if has_ns_col:
-                        ns       = parts[0]
-                        name     = parts[1]
-                        ready    = parts[2]
-                        status   = parts[3]
+                        ns = parts[0]
+                        name = parts[1]
+                        ready = parts[2]
+                        status = parts[3]
                         restarts = parts[4]
-                        age      = parts[5]
+                        age = parts[5]
                     else:
-                        ns       = None
-                        name     = parts[0]
-                        ready    = parts[1]
-                        status   = parts[2]
+                        ns = None
+                        name = parts[0]
+                        ready = parts[1]
+                        status = parts[2]
                         restarts = parts[3]
-                        age      = parts[4]
+                        age = parts[4]
 
                     # Status emoji
                     status_emoji = "✅" if status == "Running" and "/" in ready else "⚠️"
@@ -123,7 +184,7 @@ class MessageHandler:
                     )
 
             return "\n\n".join(formatted) if formatted else "No resources found"
-        
+
         # For nodes, show compact format
         elif resource_type == "nodes":
             formatted = []
@@ -135,12 +196,14 @@ class MessageHandler:
                     roles = parts[2]
                     age = parts[3]
                     version = parts[4]
-                    
+
                     status_emoji = "✅" if status == "Ready" else "❌"
-                    formatted.append(f"{status_emoji} **{name}**\n   Status: {status} | Role: {roles} | Version: {version} | Age: {age}")
-            
+                    formatted.append(
+                        f"{status_emoji} **{name}**\n   Status: {status} | Role: {roles} | Version: {version} | Age: {age}"
+                    )
+
             return "\n\n".join(formatted) if formatted else "No nodes found"
-        
+
         # For deployments, show compact format
         elif resource_type == "deployments":
             formatted = []
@@ -152,66 +215,69 @@ class MessageHandler:
                     up_to_date = parts[2]
                     available = parts[3]
                     age = parts[4] if len(parts) > 4 else "N/A"
-                    
+
                     # Check if deployment is healthy
                     status_emoji = "✅" if "/" in ready else "⚠️"
                     try:
-                        current, desired = ready.split('/')
+                        current, desired = ready.split("/")
                         if current != desired:
                             status_emoji = "⚠️"
                     except:
                         pass
-                    
-                    formatted.append(f"{status_emoji} **{name}**\n   Ready: {ready} | Up-to-date: {up_to_date} | Available: {available} | Age: {age}")
-            
+
+                    formatted.append(
+                        f"{status_emoji} **{name}**\n   Ready: {ready} | Up-to-date: {up_to_date} | Available: {available} | Age: {age}"
+                    )
+
             return "\n\n".join(formatted) if formatted else "No deployments found"
-        
+
         # For services and other resources, use table format but truncate
         else:
             # Keep header and limit column widths
             formatted = [f"```\n{header_line}"]
             for line in data_lines[:20]:  # Limit to 20 rows
                 formatted.append(line)
-            
+
             if len(data_lines) > 20:
                 formatted.append(f"... and {len(data_lines) - 20} more")
-            
+
             formatted.append("```")
             return "\n".join(formatted)
 
     async def _run_kubectl_command(self, args: list[str]) -> tuple[bool, str]:
         """
         Run a kubectl command and return the output.
-        
+
         Args:
             args: kubectl command arguments (without 'kubectl' prefix)
-            
+
         Returns:
             Tuple of (success, output)
         """
         try:
             cmd = ["kubectl"] + args
             logger.info("running_kubectl", command=" ".join(cmd))
-            
+
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode == 0:
-                output = stdout.decode('utf-8').strip()
+                output = stdout.decode("utf-8").strip()
                 return True, output
             else:
-                error = stderr.decode('utf-8').strip()
+                error = stderr.decode("utf-8").strip()
                 logger.error("kubectl_command_failed", error=error, returncode=process.returncode)
                 return False, error
-                
+
         except FileNotFoundError:
             logger.error("kubectl_not_found")
-            return False, "kubectl command not found. Please ensure kubectl is installed and in your PATH."
+            return (
+                False,
+                "kubectl command not found. Please ensure kubectl is installed and in your PATH.",
+            )
         except Exception as e:
             logger.error("kubectl_command_error", error=str(e))
             return False, f"Error executing kubectl command: {str(e)}"
@@ -219,10 +285,10 @@ class MessageHandler:
     def _format_tools_for_prompt(self, tools: list) -> str:
         """
         Format MCP tools for inclusion in AI prompt.
-        
+
         Args:
             tools: List of tool definitions
-            
+
         Returns:
             Formatted string describing available tools
         """
@@ -232,15 +298,15 @@ class MessageHandler:
             description = tool.get("description", "No description")
             params = tool.get("inputSchema", {}).get("properties", {})
             server = tool.get("_server", "unknown")
-            
+
             param_list = []
             for param_name, param_info in params.items():
                 param_type = param_info.get("type", "any")
                 param_desc = param_info.get("description", "")
                 param_list.append(f"  - {param_name} ({param_type}): {param_desc}")
-            
+
             params_str = "\n".join(param_list) if param_list else "  No parameters"
-            
+
             tool_descriptions.append(
                 f"Tool: {name} (Server: {server})\n"
                 f"Description: {description}\n"
@@ -252,43 +318,43 @@ class MessageHandler:
     async def _execute_tool_from_text(self, text: str) -> Optional[str]:
         """
         Parse AI response for tool calls and execute them.
-        
+
         Looks for patterns like:
         TOOL_CALL: tool_name(arg1="value1", arg2="value2")
-        
+
         Args:
             text: AI model response text
-            
+
         Returns:
             Tool execution result or None
         """
         import re
-        
-        pattern = r'TOOL_CALL:\s*(\w+)\((.*?)\)'
+
+        pattern = r"TOOL_CALL:\s*(\w+)\((.*?)\)"
         matches = re.findall(pattern, text)
-        
+
         if not matches:
             return None
-        
+
         results = []
         for tool_name, args_str in matches:
             # Parse arguments (simple key=value parsing)
             arguments = {}
             if args_str.strip():
-                for arg_pair in args_str.split(','):
-                    if '=' in arg_pair:
-                        key, value = arg_pair.split('=', 1)
+                for arg_pair in args_str.split(","):
+                    if "=" in arg_pair:
+                        key, value = arg_pair.split("=", 1)
                         key = key.strip()
-                        value = value.strip().strip('"\'')
+                        value = value.strip().strip("\"'")
                         arguments[key] = value
-            
+
             # Execute tool via MCP manager
             if not self.mcp_manager:
                 continue
-            
+
             logger.info("executing_tool_from_ai_response", tool=tool_name)
             result = await self.mcp_manager.call_tool(tool_name, arguments)
-            
+
             if result and not result.get("isError"):
                 # Extract text from content
                 content = result.get("content", [])
@@ -301,7 +367,7 @@ class MessageHandler:
                 if content and len(content) > 0:
                     error_text = content[0].get("text", "Unknown error")
                     results.append(f"Tool '{tool_name}' failed: {error_text}")
-        
+
         return "\n\n".join(results) if results else None
 
     async def handle_message(self, message: ChannelMessage) -> None:
@@ -382,65 +448,90 @@ class MessageHandler:
             user_id=message.user_id,
             query=message.content,
         )
-        
+
         # Parse natural language query
         query_lower = message.content.lower()
         response = None
-        
+
         # Extract namespace if mentioned
         namespace = None
         namespace_patterns = [
-            r'(?:in|from|on)\s+(?:the\s+)?([a-z0-9\-]+)(?:\s+namespace)?',
-            r'([a-z0-9\-]+)\s+namespace',  # "pos-order4u namespace" - name before "namespace" keyword
-            r'namespace\s+([a-z0-9\-]+)',
-            r'-n\s+([a-z0-9\-]+)',
+            r"(?:in|from|on)\s+(?:the\s+)?([a-z0-9\-]+)(?:\s+namespace)?",
+            r"([a-z0-9\-]+)\s+namespace",  # "pos-order4u namespace" - name before "namespace" keyword
+            r"namespace\s+([a-z0-9\-]+)",
+            r"-n\s+([a-z0-9\-]+)",
         ]
         for pattern in namespace_patterns:
             match = re.search(pattern, query_lower)
             if match:
                 namespace = match.group(1)
                 # Skip if it's a common kubernetes keyword, not a namespace
-                if namespace not in ['pod', 'pods', 'deployment', 'service', 'node', 'container', 'the', 'check', 'show', 'list', 'get', 'and']:
+                if namespace not in [
+                    "pod",
+                    "pods",
+                    "deployment",
+                    "service",
+                    "node",
+                    "container",
+                    "the",
+                    "check",
+                    "show",
+                    "list",
+                    "get",
+                    "and",
+                ]:
                     break
                 namespace = None
-        
+
         # Detect intent and execute appropriate command
         try:
             # ── Word-number normalisation ("one replica" → "1 replica") ─────────
             _WORD_NUMS = {
-                'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
-                'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
-                'ten': '10',
+                "zero": "0",
+                "one": "1",
+                "two": "2",
+                "three": "3",
+                "four": "4",
+                "five": "5",
+                "six": "6",
+                "seven": "7",
+                "eight": "8",
+                "nine": "9",
+                "ten": "10",
             }
             normalized = query_lower
             for _w, _d in _WORD_NUMS.items():
-                normalized = re.sub(rf'\b{_w}\b', _d, normalized)
+                normalized = re.sub(rf"\b{_w}\b", _d, normalized)
 
             # ── Scale / resize — checked FIRST, before pod/deployment branches ───
             # Handles: "scale down superadmin-frontend pod to one replica"
             #          "scale my-app to 2 replicas"  "resize web to 0 replicas" etc.
-            if any(kw in normalized for kw in ('scale', 'resize')) and re.search(r'\d+\s+replica', normalized):
-                num_match = re.search(r'(\d+)\s+replica', normalized)
+            if any(kw in normalized for kw in ("scale", "resize")) and re.search(
+                r"\d+\s+replica", normalized
+            ):
+                num_match = re.search(r"(\d+)\s+replica", normalized)
                 # Extract deployment name: first hyphenated token after scale/resize verb
                 name_match = re.search(
-                    r'(?:scale\s+(?:down\s+|up\s+)?|resize\s+)([a-z0-9][a-z0-9\-\.]+)',
+                    r"(?:scale\s+(?:down\s+|up\s+)?|resize\s+)([a-z0-9][a-z0-9\-\.]+)",
                     normalized,
                 )
                 if not name_match:
                     # fallback: hyphenated word before pod/deployment/to N replica
                     name_match = re.search(
-                        r'([a-z0-9][a-z0-9\-\.]{3,})(?:\s+(?:pod|deployment|app|service))?\s+(?:to\s+)?\d+\s+replica',
+                        r"([a-z0-9][a-z0-9\-\.]{3,})(?:\s+(?:pod|deployment|app|service))?\s+(?:to\s+)?\d+\s+replica",
                         normalized,
                     )
                 if name_match and num_match:
-                    deployment = name_match.group(1).rstrip('-.')
+                    deployment = name_match.group(1).rstrip("-.")
                     replicas = num_match.group(1)
 
                     # Auto-discover namespace when not specified:
                     # run 'kubectl get deployment -A' and find the line matching the name.
                     resolved_ns = namespace
                     if not resolved_ns:
-                        ok, all_deps = await self._run_kubectl_command(["get", "deployment", "--all-namespaces"])
+                        ok, all_deps = await self._run_kubectl_command(
+                            ["get", "deployment", "--all-namespaces"]
+                        )
                         if ok:
                             for _line in all_deps.splitlines()[1:]:
                                 _parts = _line.split()
@@ -474,19 +565,32 @@ class MessageHandler:
             elif any(
                 kw in query_lower
                 for kw in (
-                    'fix ', 'fix these', 'fix the', 'fix error', 'fix issue',
-                    'fix pod', 'fix crash', 'fix oom', 'clean up pod', 'cleanup pod',
-                    'clean pod', 'remediat', 'delete error', 'delete failed',
-                    'remove error', 'remove failed', 'resolve pod',
+                    "fix ",
+                    "fix these",
+                    "fix the",
+                    "fix error",
+                    "fix issue",
+                    "fix pod",
+                    "fix crash",
+                    "fix oom",
+                    "clean up pod",
+                    "cleanup pod",
+                    "clean pod",
+                    "remediat",
+                    "delete error",
+                    "delete failed",
+                    "remove error",
+                    "remove failed",
+                    "resolve pod",
                 )
             ):
                 response = await self._fix_problem_pods(namespace)
 
             # List pods
-            elif any(word in query_lower for word in ['pod', 'pods', 'container', 'containers']):
-                if 'log' in query_lower:
+            elif any(word in query_lower for word in ["pod", "pods", "container", "containers"]):
+                if "log" in query_lower:
                     # Extract pod name
-                    pod_match = re.search(r'(?:pod|container)\s+(\S+)', query_lower)
+                    pod_match = re.search(r"(?:pod|container)\s+(\S+)", query_lower)
                     if pod_match:
                         pod_name = pod_match.group(1)
                         kubectl_args = ["logs", pod_name]
@@ -494,12 +598,15 @@ class MessageHandler:
                             kubectl_args.extend(["-n", namespace])
                         else:
                             kubectl_args.extend(["-n", "default"])
-                        
+
                         success, output = await self._run_kubectl_command(kubectl_args)
                         if success:
-                            lines = output.split('\n')
+                            lines = output.split("\n")
                             if len(lines) > 50:
-                                output = '\n'.join(lines[-50:]) + f"\n\n(Showing last 50 lines of {len(lines)} total)"
+                                output = (
+                                    "\n".join(lines[-50:])
+                                    + f"\n\n(Showing last 50 lines of {len(lines)} total)"
+                                )
                             response = f"📜 **Logs from pod {pod_name}:**\n\n```\n{output}\n```"
                         else:
                             response = f"❌ Error getting logs: {output}"
@@ -509,84 +616,114 @@ class MessageHandler:
                     # Detect status filter
                     status_filter = None
                     filter_description = ""
-                    
-                    if any(word in query_lower for word in ['error', 'errors', 'failed', 'failing', 'crash', 'crashloop', 'crashloopbackoff']):
+
+                    if any(
+                        word in query_lower
+                        for word in [
+                            "error",
+                            "errors",
+                            "failed",
+                            "failing",
+                            "crash",
+                            "crashloop",
+                            "crashloopbackoff",
+                        ]
+                    ):
                         status_filter = "problem"
                         filter_description = " with issues"
-                    elif any(word in query_lower for word in ['unhealthy', 'not ready', 'notready']):
+                    elif any(
+                        word in query_lower for word in ["unhealthy", "not ready", "notready"]
+                    ):
                         status_filter = "notready"
                         filter_description = " not ready"
-                    elif 'pending' in query_lower:
+                    elif "pending" in query_lower:
                         status_filter = "pending"
                         filter_description = " pending"
-                    elif any(word in query_lower for word in ['running', 'healthy', 'ready']):
+                    elif any(word in query_lower for word in ["running", "healthy", "ready"]):
                         status_filter = "running"
                         filter_description = " running"
-                    
+
                     # List pods
                     kubectl_args = ["get", "pods", "-o", "wide"]
                     if namespace:
                         kubectl_args.extend(["-n", namespace])
                     else:
                         kubectl_args.append("--all-namespaces")
-                    
+
                     success, output = await self._run_kubectl_command(kubectl_args)
                     if success:
                         # Apply status filtering if requested
                         if status_filter:
-                            lines = output.split('\n')
+                            lines = output.split("\n")
                             header = lines[0] if lines else ""
                             filtered_lines = [header]
-                            
+
                             for line in lines[1:]:
                                 if not line.strip():
                                     continue
-                                    
+
                                 if status_filter == "problem":
                                     # Show pods that are not Running or Completed
-                                    if any(status in line for status in ['Error', 'CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'Pending', 'Failed', 'Unknown', 'Terminating', 'ContainerCreating', 'OOMKilled']):
+                                    if any(
+                                        status in line
+                                        for status in [
+                                            "Error",
+                                            "CrashLoopBackOff",
+                                            "ImagePullBackOff",
+                                            "ErrImagePull",
+                                            "Pending",
+                                            "Failed",
+                                            "Unknown",
+                                            "Terminating",
+                                            "ContainerCreating",
+                                            "OOMKilled",
+                                        ]
+                                    ):
                                         filtered_lines.append(line)
                                     # Also check for Running pods with restarts
-                                    elif 'Running' in line:
+                                    elif "Running" in line:
                                         parts = line.split()
                                         # Check READY column (usually 2nd or 3rd column depending on namespace)
                                         for part in parts:
-                                            if '/' in part:
-                                                ready, total = part.split('/')
+                                            if "/" in part:
+                                                ready, total = part.split("/")
                                                 if ready != total:  # Not all containers ready
                                                     filtered_lines.append(line)
                                                     break
                                 elif status_filter == "notready":
                                     # Show pods where READY != total or status not Running
-                                    if 'Running' not in line or any(status in line for status in ['Pending', 'Error', 'CrashLoop']):
+                                    if "Running" not in line or any(
+                                        status in line
+                                        for status in ["Pending", "Error", "CrashLoop"]
+                                    ):
                                         filtered_lines.append(line)
                                     else:
                                         parts = line.split()
                                         for part in parts:
-                                            if '/' in part:
-                                                ready, total = part.split('/')
+                                            if "/" in part:
+                                                ready, total = part.split("/")
                                                 if ready != total:
                                                     filtered_lines.append(line)
                                                     break
                                 elif status_filter == "pending":
-                                    if 'Pending' in line or 'ContainerCreating' in line:
+                                    if "Pending" in line or "ContainerCreating" in line:
                                         filtered_lines.append(line)
                                 elif status_filter == "running":
-                                    if 'Running' in line:
+                                    if "Running" in line:
                                         # Check if all containers are ready
                                         parts = line.split()
                                         is_healthy = False
                                         for part in parts:
-                                            if '/' in part:
-                                                ready, total = part.split('/')
+                                            if "/" in part:
+                                                ready, total = part.split("/")
                                                 if ready == total:
                                                     is_healthy = True
                                                 break
                                         if is_healthy:
                                             filtered_lines.append(line)
-                            
+
                             if len(filtered_lines) > 1:
-                                output = '\n'.join(filtered_lines)
+                                output = "\n".join(filtered_lines)
                                 formatted_output = self._format_kubectl_table(output, "pods")
                                 response = f"📦 **Pods{filter_description}{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n{formatted_output}"
                             else:
@@ -594,12 +731,18 @@ class MessageHandler:
                         else:
                             # No explicit filter requested — show only problem pods to keep
                             # Slack replies concise.  Show "all healthy" summary if none.
-                            lines = output.split('\n')
+                            lines = output.split("\n")
                             header = lines[0] if lines else ""
                             _bad = [
-                                'Error', 'CrashLoopBackOff', 'ImagePullBackOff',
-                                'Pending', 'Failed', 'Unknown', 'Terminating',
-                                'ContainerCreating', 'OOMKilled',
+                                "Error",
+                                "CrashLoopBackOff",
+                                "ImagePullBackOff",
+                                "Pending",
+                                "Failed",
+                                "Unknown",
+                                "Terminating",
+                                "ContainerCreating",
+                                "OOMKilled",
                             ]
                             problem_lines: list[str] = []
                             healthy_count = 0
@@ -608,12 +751,12 @@ class MessageHandler:
                                     continue
                                 if any(s in _line for s in _bad):
                                     problem_lines.append(_line)
-                                elif 'Running' in _line:
+                                elif "Running" in _line:
                                     _parts = _line.split()
                                     _degraded = False
                                     for _p in _parts:
-                                        if '/' in _p:
-                                            _r, _t = _p.split('/', 1)
+                                        if "/" in _p:
+                                            _r, _t = _p.split("/", 1)
                                             if _r != _t:
                                                 _degraded = True
                                             break
@@ -621,9 +764,11 @@ class MessageHandler:
                                         problem_lines.append(_line)
                                     else:
                                         healthy_count += 1
-                            ns_label = f" in namespace `{namespace}`" if namespace else " (all namespaces)"
+                            ns_label = (
+                                f" in namespace `{namespace}`" if namespace else " (all namespaces)"
+                            )
                             if problem_lines:
-                                _filt = '\n'.join([header] + problem_lines)
+                                _filt = "\n".join([header] + problem_lines)
                                 formatted_output = self._format_kubectl_table(_filt, "pods")
                                 _fix_hint = (
                                     f"\n\n💡 _Type **`fix pods`** or **`!k8s fix`**"
@@ -639,14 +784,16 @@ class MessageHandler:
                                 response = f"✅ All {healthy_count} pod(s){ns_label} are healthy."
                     else:
                         response = f"❌ Error getting pods: {output}"
-            
+
             # List deployments
-            elif any(word in query_lower for word in ['deployment', 'deployments', 'deploy']):
-                if 'scale' in query_lower:
+            elif any(word in query_lower for word in ["deployment", "deployments", "deploy"]):
+                if "scale" in query_lower:
                     # Extract deployment name and replica count
-                    deploy_match = re.search(r'(?:deployment|deploy)\s+(\S+)', query_lower)
-                    replica_match = re.search(r'(?:to\s+)?(\d+)\s+(?:replica|replicas|instance)', query_lower)
-                    
+                    deploy_match = re.search(r"(?:deployment|deploy)\s+(\S+)", query_lower)
+                    replica_match = re.search(
+                        r"(?:to\s+)?(\d+)\s+(?:replica|replicas|instance)", query_lower
+                    )
+
                     if deploy_match and replica_match:
                         deployment = deploy_match.group(1)
                         replicas = replica_match.group(1)
@@ -655,7 +802,7 @@ class MessageHandler:
                             kubectl_args.extend(["-n", namespace])
                         else:
                             kubectl_args.extend(["-n", "default"])
-                        
+
                         success, output = await self._run_kubectl_command(kubectl_args)
                         if success:
                             response = f"⚖️ **Scaled deployment {deployment} to {replicas} replicas:**\n\n{output}"
@@ -670,52 +817,55 @@ class MessageHandler:
                         kubectl_args.extend(["-n", namespace])
                     else:
                         kubectl_args.append("--all-namespaces")
-                    
+
                     success, output = await self._run_kubectl_command(kubectl_args)
                     if success:
                         formatted_output = self._format_kubectl_table(output, "deployments")
                         response = f"🚀 **Deployments{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n{formatted_output}"
                     else:
                         response = f"❌ Error getting deployments: {output}"
-            
+
             # List services
-            elif any(word in query_lower for word in ['service', 'services', 'svc']):
+            elif any(word in query_lower for word in ["service", "services", "svc"]):
                 kubectl_args = ["get", "services", "-o", "wide"]
                 if namespace:
                     kubectl_args.extend(["-n", namespace])
                 else:
                     kubectl_args.append("--all-namespaces")
-                
+
                 success, output = await self._run_kubectl_command(kubectl_args)
                 if success:
                     response = f"🌐 **Services{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n```\n{output}\n```"
                 else:
                     response = f"❌ Error getting services: {output}"
-            
+
             # List nodes
-            elif any(word in query_lower for word in ['node', 'nodes', 'cluster']):
+            elif any(word in query_lower for word in ["node", "nodes", "cluster"]):
                 success, output = await self._run_kubectl_command(["get", "nodes", "-o", "wide"])
                 if success:
                     response = f"🖥️ **Nodes:**\n\n```\n{output}\n```"
                 else:
                     response = f"❌ Error getting nodes: {output}"
-            
+
             # List namespaces
-            elif 'namespace' in query_lower and not namespace:
+            elif "namespace" in query_lower and not namespace:
                 success, output = await self._run_kubectl_command(["get", "namespaces"])
                 if success:
                     response = f"🏢 **Namespaces:**\n\n```\n{output}\n```"
                 else:
                     response = f"❌ Error getting namespaces: {output}"
-            
+
             # Show events
-            elif any(word in query_lower for word in ['event', 'events', 'what happened', "what's happening"]):
+            elif any(
+                word in query_lower
+                for word in ["event", "events", "what happened", "what's happening"]
+            ):
                 kubectl_args = ["get", "events"]
                 if namespace:
                     kubectl_args.extend(["-n", namespace])
                 else:
                     kubectl_args.append("--all-namespaces")
-                
+
                 success, output = await self._run_kubectl_command(kubectl_args)
                 if success:
                     response = f"📰 **Events{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n```\n{output}\n```"
@@ -723,9 +873,9 @@ class MessageHandler:
                     response = f"❌ Error getting events: {output}"
 
             # ── Self-healing: restart pod ──────────────────────────────────
-            elif any(word in query_lower for word in ['restart']):
-                pod_match = re.search(r'restart\s+(?:pod\s+)?(\S+)', query_lower)
-                deploy_match = re.search(r'restart\s+(?:deployment\s+)?(\S+)', query_lower)
+            elif any(word in query_lower for word in ["restart"]):
+                pod_match = re.search(r"restart\s+(?:pod\s+)?(\S+)", query_lower)
+                deploy_match = re.search(r"restart\s+(?:deployment\s+)?(\S+)", query_lower)
                 if pod_match:
                     pod_name = pod_match.group(1)
                     kubectl_args = ["delete", "pod", pod_name, "--grace-period=0"]
@@ -742,7 +892,9 @@ class MessageHandler:
                 elif deploy_match:
                     deploy_name = deploy_match.group(1)
                     kubectl_args = [
-                        "rollout", "restart", f"deployment/{deploy_name}",
+                        "rollout",
+                        "restart",
+                        f"deployment/{deploy_name}",
                     ]
                     if namespace:
                         kubectl_args.extend(["-n", namespace])
@@ -756,9 +908,9 @@ class MessageHandler:
                     response = "❌ Please specify what to restart. Example: 'restart pod nginx-abc123' or 'restart deployment my-app'"
 
             # ── Self-healing: rollback deployment ─────────────────────────
-            elif 'rollback' in query_lower:
-                deploy_match = re.search(r'rollback\s+(?:deployment\s+)?(\S+)', query_lower)
-                revision_match = re.search(r'to\s+revision\s+(\d+)', query_lower)
+            elif "rollback" in query_lower:
+                deploy_match = re.search(r"rollback\s+(?:deployment\s+)?(\S+)", query_lower)
+                revision_match = re.search(r"to\s+revision\s+(\d+)", query_lower)
                 if deploy_match:
                     deploy_name = deploy_match.group(1)
                     kubectl_args = ["rollout", "undo", f"deployment/{deploy_name}"]
@@ -776,15 +928,23 @@ class MessageHandler:
                     response = "❌ Please specify deployment to roll back. Example: 'rollback deployment my-app'"
 
             # ── Self-healing: cordon / uncordon / drain node ───────────────
-            elif any(word in query_lower for word in ['cordon', 'uncordon', 'drain']):
-                node_match = re.search(r'(?:cordon|uncordon|drain)\s+(?:node\s+)?(\S+)', query_lower)
+            elif any(word in query_lower for word in ["cordon", "uncordon", "drain"]):
+                node_match = re.search(
+                    r"(?:cordon|uncordon|drain)\s+(?:node\s+)?(\S+)", query_lower
+                )
                 if node_match:
                     node_name = node_match.group(1)
-                    if 'uncordon' in query_lower:
+                    if "uncordon" in query_lower:
                         kubectl_args = ["uncordon", node_name]
                         action = "Uncordoned"
-                    elif 'drain' in query_lower:
-                        kubectl_args = ["drain", node_name, "--ignore-daemonsets", "--delete-emissary-data", "--timeout=120s"]
+                    elif "drain" in query_lower:
+                        kubectl_args = [
+                            "drain",
+                            node_name,
+                            "--ignore-daemonsets",
+                            "--delete-emissary-data",
+                            "--timeout=120s",
+                        ]
                         action = "Drained"
                     else:
                         kubectl_args = ["cordon", node_name]
@@ -799,18 +959,22 @@ class MessageHandler:
                     response = "❌ Please specify a node name. Example: 'drain node worker-1'"
 
             # ── Self-healing: show CrashLoop pods ─────────────────────────
-            elif any(word in query_lower for word in ['crashloop', 'crashlooping', 'crashing', 'oom']):
-                bad_statuses = ['CrashLoopBackOff', 'Error', 'OOMKilled', 'ImagePullBackOff']
+            elif any(
+                word in query_lower for word in ["crashloop", "crashlooping", "crashing", "oom"]
+            ):
+                bad_statuses = ["CrashLoopBackOff", "Error", "OOMKilled", "ImagePullBackOff"]
                 kubectl_args = ["get", "pods", "--all-namespaces", "-o", "wide"]
                 success, output = await self._run_kubectl_command(kubectl_args)
                 if success:
-                    lines = output.split('\n')
+                    lines = output.split("\n")
                     header = lines[0] if lines else ""
                     problem_lines = [header] + [
                         l for l in lines[1:] if any(s in l for s in bad_statuses)
                     ]
                     if len(problem_lines) > 1:
-                        response = f"🚨 **Problematic Pods:**\n\n```\n{chr(10).join(problem_lines)}\n```"
+                        response = (
+                            f"🚨 **Problematic Pods:**\n\n```\n{chr(10).join(problem_lines)}\n```"
+                        )
                     else:
                         response = "✅ No CrashLoop / OOMKilled pods found."
                 else:
@@ -818,7 +982,7 @@ class MessageHandler:
 
             # ── Explicit "fix" / "remediate" without pod/crash keyword ───────
             # e.g. "fix the cluster" / "clean up failed resources"
-            elif any(kw in query_lower for kw in ('fix', 'clean', 'remediat', 'repair')):
+            elif any(kw in query_lower for kw in ("fix", "clean", "remediat", "repair")):
                 response = await self._fix_problem_pods(namespace)
 
             # Default: show help
@@ -844,15 +1008,13 @@ class MessageHandler:
                     "• `!incident list` — open incidents\n"
                     "• `!alert list` — recent alerts"
                 )
-        
+
         except Exception as e:
             logger.error("k8s_query_error", error=str(e), query=message.content)
             response = f"❌ Error: {str(e)}\n\nTry `!k8s help` for all commands."
-        
+
         # Send response
-        await self.router.send_message(
-            message.channel_type, message.user_id, response
-        )
+        await self.router.send_message(message.channel_type, message.user_id, response)
 
     async def _handle_security_query(self, message: ChannelMessage) -> None:
         """Handle security scanning queries using simplePortChecker MCP server."""
@@ -862,128 +1024,121 @@ class MessageHandler:
             user_id=message.user_id,
             query=message.content,
         )
-        
+
         if not self.mcp_manager:
             response = "❌ Security tools are not available. MCP manager not initialized."
-            await self.router.send_message(
-                message.channel_type, message.user_id, response
-            )
+            await self.router.send_message(message.channel_type, message.user_id, response)
             return
-        
+
         query_lower = message.content.lower()
         response = None
-        
+
         try:
             # Get available tools from simplePortChecker
             tools = await self.mcp_manager.list_all_tools()
-            security_tools = [t for t in tools if t.get('_server') == 'simplePortChecker']
-            
+            security_tools = [t for t in tools if t.get("_server") == "simplePortChecker"]
+
             if not security_tools:
                 response = "❌ Security tools not available. SimplePortChecker MCP server may not be connected."
             else:
                 # Pattern matching for different security queries
                 import re
-                
+
                 # 1. Port scanning: "is port 443 open on lobehub.com"
-                port_pattern = r'port\s+(\d+)\s+(?:open\s+)?(?:on|at|for)\s+([a-zA-Z0-9\.\-]+)'
+                port_pattern = r"port\s+(\d+)\s+(?:open\s+)?(?:on|at|for)\s+([a-zA-Z0-9\.\-]+)"
                 port_match = re.search(port_pattern, query_lower)
-                
+
                 # 2. Certificate check: "check certificate for lobehub.com", "ssl cert on example.com"
-                cert_pattern = r'(?:check|analyze|verify)?\s*(?:ssl|tls|https)?\s*(?:cert|certificate)\s+(?:for|on|of)?\s+([a-zA-Z0-9\.\-]+)'
+                cert_pattern = r"(?:check|analyze|verify)?\s*(?:ssl|tls|https)?\s*(?:cert|certificate)\s+(?:for|on|of)?\s+([a-zA-Z0-9\.\-]+)"
                 cert_match = re.search(cert_pattern, query_lower)
-                
+
                 # 3. WAF/CDN detection: "check waf on example.com", "detect cdn for site.com"
-                waf_pattern = r'(?:check|detect)?\s*(?:waf|cdn|cloudflare|protection|firewall)\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)'
+                waf_pattern = r"(?:check|detect)?\s*(?:waf|cdn|cloudflare|protection|firewall)\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)"
                 waf_match = re.search(waf_pattern, query_lower)
-                
+
                 # 4. mTLS check: "check mtls on api.example.com"
-                mtls_pattern = r'(?:check|verify)?\s*mtls\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)'
+                mtls_pattern = r"(?:check|verify)?\s*mtls\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)"
                 mtls_match = re.search(mtls_pattern, query_lower)
-                
+
                 # 5. Security headers: "check security headers for example.com"
-                headers_pattern = r'(?:check|scan)?\s*(?:security\s+)?headers\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)'
+                headers_pattern = (
+                    r"(?:check|scan)?\s*(?:security\s+)?headers\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)"
+                )
                 headers_match = re.search(headers_pattern, query_lower)
-                
+
                 # 6. OWASP scan: "scan owasp vulnerabilities on example.com"
-                owasp_pattern = r'(?:scan|check)?\s*owasp\s+(?:vulnerabilities)?\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)'
+                owasp_pattern = r"(?:scan|check)?\s*owasp\s+(?:vulnerabilities)?\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)"
                 owasp_match = re.search(owasp_pattern, query_lower)
-                
+
                 # 7. Full security scan: "full security scan on example.com", "security assessment for site.com"
-                full_scan_pattern = r'(?:full|complete|comprehensive)?\s*security\s+(?:scan|assessment|check)\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)'
+                full_scan_pattern = r"(?:full|complete|comprehensive)?\s*security\s+(?:scan|assessment|check)\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)"
                 full_scan_match = re.search(full_scan_pattern, query_lower)
-                
+
                 # 8. Extract just a hostname for general security info
-                host_pattern = r'(?:for|on|of|at)\s+([a-zA-Z0-9\.\-]+)'
+                host_pattern = r"(?:for|on|of|at)\s+([a-zA-Z0-9\.\-]+)"
                 host_match = re.search(host_pattern, query_lower)
-                
+
                 # Route to appropriate tool
                 if port_match:
                     port = port_match.group(1)
                     host = port_match.group(2)
                     logger.info("calling_security_tool", tool="scan_ports", host=host, port=port)
                     result = await self.mcp_manager.call_tool(
-                        "scan_ports",
-                        {"target": host, "ports": [int(port)]}
+                        "scan_ports", {"target": host, "ports": [int(port)]}
                     )
                     response = self._format_tool_result(result, "🔌 Port Scan", host)
-                    
+
                 elif cert_match:
                     host = cert_match.group(1)
                     logger.info("calling_security_tool", tool="analyze_certificate", host=host)
                     result = await self.mcp_manager.call_tool(
-                        "analyze_certificate",
-                        {"target": host}
+                        "analyze_certificate", {"target": host}
                     )
                     response = self._format_tool_result(result, "🔒 Certificate Analysis", host)
-                    
+
                 elif waf_match:
                     host = waf_match.group(1)
                     logger.info("calling_security_tool", tool="detect_l7_protection", host=host)
                     result = await self.mcp_manager.call_tool(
-                        "detect_l7_protection",
-                        {"target": host}
+                        "detect_l7_protection", {"target": host}
                     )
                     response = self._format_tool_result(result, "🛡️ WAF/CDN Detection", host)
-                    
+
                 elif mtls_match:
                     host = mtls_match.group(1)
                     logger.info("calling_security_tool", tool="check_mtls", host=host)
-                    result = await self.mcp_manager.call_tool(
-                        "check_mtls",
-                        {"target": host}
-                    )
+                    result = await self.mcp_manager.call_tool("check_mtls", {"target": host})
                     response = self._format_tool_result(result, "🔐 mTLS Check", host)
-                    
+
                 elif headers_match:
                     host = headers_match.group(1)
                     logger.info("calling_security_tool", tool="check_security_headers", host=host)
                     result = await self.mcp_manager.call_tool(
-                        "check_security_headers",
-                        {"target": host}
+                        "check_security_headers", {"target": host}
                     )
                     response = self._format_tool_result(result, "📋 Security Headers", host)
-                    
+
                 elif owasp_match:
                     host = owasp_match.group(1)
-                    logger.info("calling_security_tool", tool="scan_owasp_vulnerabilities", host=host)
+                    logger.info(
+                        "calling_security_tool", tool="scan_owasp_vulnerabilities", host=host
+                    )
                     result = await self.mcp_manager.call_tool(
-                        "scan_owasp_vulnerabilities",
-                        {"target": host}
+                        "scan_owasp_vulnerabilities", {"target": host}
                     )
                     response = self._format_tool_result(result, "🔍 OWASP Vulnerability Scan", host)
-                    
+
                 elif full_scan_match:
                     host = full_scan_match.group(1)
                     logger.info("calling_security_tool", tool="full_security_scan", host=host)
                     result = await self.mcp_manager.call_tool(
-                        "full_security_scan",
-                        {"target": host}
+                        "full_security_scan", {"target": host}
                     )
                     response = self._format_tool_result(result, "🔎 Full Security Assessment", host)
-                    
+
                 else:
                     # Show help with all available tools
-                    tool_names = [t.get('name', 'Unknown') for t in security_tools]
+                    tool_names = [t.get("name", "Unknown") for t in security_tools]
                     response = f"""🔧 **Security Tools Available**
 
 I have {len(security_tools)} security tools from SimplePortChecker:
@@ -1015,17 +1170,15 @@ I have {len(security_tools)} security tools from SimplePortChecker:
 • "comprehensive security assessment for site.com"
 
 **Available Tools:** {', '.join(tool_names)}"""
-                    
+
         except Exception as e:
             logger.error("security_query_error", error=str(e))
             response = f"❌ Error executing security scan: {str(e)}"
-        
+
         # Send response
         if response:
-            await self.router.send_message(
-                message.channel_type, message.user_id, response
-            )
-    
+            await self.router.send_message(message.channel_type, message.user_id, response)
+
     def _format_tool_result(self, result: dict, title: str, target: str) -> str:
         """Format tool execution result for display."""
         if result and not result.get("isError"):
@@ -1048,7 +1201,7 @@ I have {len(security_tools)} security tools from SimplePortChecker:
         command = command_parts[0].lower()
         if not command.startswith("/"):
             command = "/" + command.lstrip("!")
-        
+
         logger.info("command_received", command=command, parts=command_parts)
 
         async with get_db_session() as db_session:
@@ -1098,7 +1251,9 @@ Tokens: {stats['total_tokens']}"""
             elif command == "/k8s":
                 logger.info("k8s_command_received", args=command_parts[1:])
                 try:
-                    response = await self._handle_k8s_command(command_parts[1:] if len(command_parts) > 1 else [])
+                    response = await self._handle_k8s_command(
+                        command_parts[1:] if len(command_parts) > 1 else []
+                    )
                     logger.info("k8s_command_processed", response_length=len(response))
                 except Exception as e:
                     logger.error("k8s_command_failed", error=str(e), error_type=type(e).__name__)
@@ -1121,17 +1276,15 @@ Tokens: {stats['total_tokens']}"""
                 )
 
             # Send response
-            await self.router.send_message(
-                message.channel_type, message.user_id, response
-            )
+            await self.router.send_message(message.channel_type, message.user_id, response)
 
     async def _handle_k8s_command(self, args: list[str]) -> str:
         """
         Handle Kubernetes commands.
-        
+
         Args:
             args: Command arguments (everything after /k8s)
-            
+
         Returns:
             Response message
         """
@@ -1185,28 +1338,28 @@ Examples:
 
 Note: Kubernetes MCP tools are integrated. You can manage your cluster directly from this chat!
 """
-        
+
         subcommand = args[0].lower()
-        
+
         try:
             # Handle different subcommands with kubectl
             if subcommand == "pods":
                 namespace = args[1] if len(args) > 1 else None
                 logger.info("k8s_listing_pods", namespace=namespace)
-                
+
                 kubectl_args = ["get", "pods"]
                 if namespace:
                     kubectl_args.extend(["-n", namespace])
                 else:
                     kubectl_args.append("--all-namespaces")
-                
+
                 success, output = await self._run_kubectl_command(kubectl_args)
                 if success:
                     formatted_output = self._format_kubectl_table(output, "pods")
                     return f"📦 **Pods{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n{formatted_output}"
                 else:
                     return f"❌ Error getting pods: {output}"
-            
+
             elif subcommand == "nodes":
                 logger.info("k8s_listing_nodes")
                 success, output = await self._run_kubectl_command(["get", "nodes"])
@@ -1215,7 +1368,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"🖥️ **Nodes:**\n\n{formatted_output}"
                 else:
                     return f"❌ Error getting nodes: {output}"
-            
+
             elif subcommand == "namespaces":
                 logger.info("k8s_listing_namespaces")
                 success, output = await self._run_kubectl_command(["get", "namespaces"])
@@ -1223,7 +1376,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"🏢 **Namespaces:**\n\n```\n{output}\n```"
                 else:
                     return f"❌ Error getting namespaces: {output}"
-            
+
             elif subcommand == "deployments":
                 namespace = args[1] if len(args) > 1 else None
                 logger.info("k8s_listing_deployments", namespace=namespace)
@@ -1238,7 +1391,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"🚀 **Deployments{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n{formatted_output}"
                 else:
                     return f"❌ Error getting deployments: {output}"
-            
+
             elif subcommand == "services":
                 namespace = args[1] if len(args) > 1 else None
                 logger.info("k8s_listing_services", namespace=namespace)
@@ -1252,7 +1405,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"🌐 **Services{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n```\n{output}\n```"
                 else:
                     return f"❌ Error getting services: {output}"
-            
+
             elif subcommand == "contexts":
                 logger.info("k8s_listing_contexts")
                 success, output = await self._run_kubectl_command(["config", "get-contexts"])
@@ -1260,40 +1413,48 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"🔧 **Contexts:**\n\n```\n{output}\n```"
                 else:
                     return f"❌ Error getting contexts: {output}"
-            
+
             elif subcommand == "logs":
                 if len(args) < 2:
                     return "❌ Usage: /k8s logs <pod-name> [namespace]"
                 pod_name = args[1]
                 namespace = args[2] if len(args) > 2 else "default"
                 logger.info("k8s_getting_logs", pod=pod_name, namespace=namespace)
-                success, output = await self._run_kubectl_command(["logs", pod_name, "-n", namespace])
+                success, output = await self._run_kubectl_command(
+                    ["logs", pod_name, "-n", namespace]
+                )
                 if success:
                     # Limit log output to last 50 lines for readability
-                    lines = output.split('\n')
+                    lines = output.split("\n")
                     if len(lines) > 50:
-                        output = '\n'.join(lines[-50:]) + f"\n\n(Showing last 50 lines of {len(lines)} total)"
+                        output = (
+                            "\n".join(lines[-50:])
+                            + f"\n\n(Showing last 50 lines of {len(lines)} total)"
+                        )
                     return f"📜 **Logs from pod {pod_name} in namespace {namespace}:**\n\n```\n{output}\n```"
                 else:
                     return f"❌ Error getting logs: {output}"
-            
+
             elif subcommand == "scale":
                 if len(args) < 3:
                     return "❌ Usage: /k8s scale <deployment> <replicas> [namespace]"
                 deployment = args[1]
                 replicas = args[2]
                 namespace = args[3] if len(args) > 3 else "default"
-                logger.info("k8s_scaling_deployment", deployment=deployment, replicas=replicas, namespace=namespace)
-                success, output = await self._run_kubectl_command([
-                    "scale", "deployment", deployment,
-                    f"--replicas={replicas}",
-                    "-n", namespace
-                ])
+                logger.info(
+                    "k8s_scaling_deployment",
+                    deployment=deployment,
+                    replicas=replicas,
+                    namespace=namespace,
+                )
+                success, output = await self._run_kubectl_command(
+                    ["scale", "deployment", deployment, f"--replicas={replicas}", "-n", namespace]
+                )
                 if success:
                     return f"⚖️ **Scaling deployment {deployment} to {replicas} replicas in namespace {namespace}:**\n\n{output}"
                 else:
                     return f"❌ Error scaling deployment: {output}"
-            
+
             elif subcommand == "events":
                 namespace = args[1] if len(args) > 1 else None
                 logger.info("k8s_listing_events", namespace=namespace)
@@ -1307,73 +1468,79 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"📰 **Events{f' in namespace {namespace}' if namespace else ' (all namespaces)'}:**\n\n```\n{output}\n```"
                 else:
                     return f"❌ Error getting events: {output}"
-            
+
             elif subcommand == "describe":
                 if len(args) < 3:
                     return "❌ Usage: /k8s describe <resource-type> <name> [namespace]"
                 resource_type = args[1]
                 name = args[2]
                 namespace = args[3] if len(args) > 3 else "default"
-                logger.info("k8s_describe", resource_type=resource_type, name=name, namespace=namespace)
-                
+                logger.info(
+                    "k8s_describe", resource_type=resource_type, name=name, namespace=namespace
+                )
+
                 kubectl_args = ["describe", resource_type, name]
                 # Don't add namespace for cluster-scoped resources like nodes
                 if resource_type.lower() not in ["node", "nodes", "namespace", "namespaces"]:
                     kubectl_args.extend(["-n", namespace])
-                
+
                 success, output = await self._run_kubectl_command(kubectl_args)
                 if success:
                     return f"🔍 **{resource_type} {name}:**\n\n```\n{output}\n```"
                 else:
                     return f"❌ Error describing {resource_type}: {output}"
-            
+
             elif subcommand == "helm":
                 if len(args) < 2:
                     return "❌ Usage: /k8s helm <list|status|...> [args...]"
                 helm_command = args[1]
                 logger.info("k8s_helm_command", command=helm_command)
-                
+
                 if helm_command == "list":
-                    success, output = await self._run_kubectl_command(["get", "all", "-A", "-l", "app.kubernetes.io/managed-by=Helm"])
+                    success, output = await self._run_kubectl_command(
+                        ["get", "all", "-A", "-l", "app.kubernetes.io/managed-by=Helm"]
+                    )
                     if success:
                         return f"⎈ **Helm-managed Resources:**\n\n```\n{output}\n```\n\n_Note: For full Helm functionality, install helm CLI and use: helm list --all-namespaces_"
                     else:
                         return f"❌ Error listing Helm resources: {output}"
                 else:
                     return f"⎈ Helm command '{helm_command}' requires helm CLI. This bot focuses on kubectl commands.\n\nFor Helm: install helm and run: `helm {helm_command}`"
-            
+
             elif subcommand == "top":
                 if len(args) < 2:
                     return "❌ Usage: /k8s top <pods|nodes> [namespace]"
                 resource = args[1]
                 logger.info("k8s_top", resource=resource)
-                
+
                 kubectl_args = ["top", resource]
                 if resource == "pods" and len(args) > 2:
                     kubectl_args.extend(["-n", args[2]])
                 elif resource == "pods":
                     kubectl_args.append("--all-namespaces")
-                
+
                 success, output = await self._run_kubectl_command(kubectl_args)
                 if success:
-                    namespace_info = f" in namespace {args[2]}" if resource == "pods" and len(args) > 2 else ""
+                    namespace_info = (
+                        f" in namespace {args[2]}" if resource == "pods" and len(args) > 2 else ""
+                    )
                     return f"📊 **{resource.capitalize()} Resource Usage{namespace_info}:**\n\n```\n{output}\n```"
                 else:
                     if "metrics-server" in output.lower():
                         return f"❌ Metrics Server not available. Install it with:\n```\nkubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml\n```"
                     return f"❌ Error getting resource usage: {output}"
-            
+
             elif subcommand == "config":
                 logger.info("k8s_viewing_config")
                 success, output = await self._run_kubectl_command(["config", "view"])
                 if success:
                     # Limit output for security - don't show full config in chat
-                    lines = output.split('\n')[:20]
-                    truncated = '\n'.join(lines)
+                    lines = output.split("\n")[:20]
+                    truncated = "\n".join(lines)
                     return f"📋 **Kubernetes Configuration (first 20 lines):**\n\n```yaml\n{truncated}\n...\n```\n\n_For full config, use: kubectl config view_"
                 else:
                     return f"❌ Error viewing config: {output}"
-            
+
             elif subcommand == "fix":
                 # /k8s fix [namespace]  — auto-remediate error/crash/failed pods
                 fix_ns = args[1] if len(args) > 1 else None
@@ -1381,7 +1548,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
 
             else:
                 return f"❌ Unknown Kubernetes command: {subcommand}\n\nTry `/k8s help` for available commands."
-        
+
         except Exception as e:
             logger.error("k8s_command_error", error=str(e), subcommand=subcommand)
             return f"❌ Error executing Kubernetes command: {str(e)}\n\nPlease check your cluster configuration and try again."
@@ -1418,8 +1585,8 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
         has_ns_col = header.strip().upper().startswith("NAMESPACE")
 
         # Categorise pods
-        deletable: list[tuple[str, str, str]] = []   # (ns, name, status) — safe to delete
-        manual:    list[tuple[str, str, str]] = []   # needs human investigation
+        deletable: list[tuple[str, str, str]] = []  # (ns, name, status) — safe to delete
+        manual: list[tuple[str, str, str]] = []  # needs human investigation
 
         for line in lines[1:]:
             if not line.strip():
@@ -1432,18 +1599,23 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
             else:
                 if len(parts) < 5:
                     continue
-                pod_ns    = namespace or "default"
-                pod_name  = parts[0]
-                ready     = parts[1]
-                status    = parts[2]
+                pod_ns = namespace or "default"
+                pod_name = parts[0]
+                ready = parts[1]
+                status = parts[2]
 
             # Determine if this pod is a problem
             is_degraded = False
             if any(
                 s in status
                 for s in [
-                    "Error", "Failed", "CrashLoopBackOff", "OOMKilled",
-                    "ImagePullBackOff", "ErrImagePull", "InvalidImageName",
+                    "Error",
+                    "Failed",
+                    "CrashLoopBackOff",
+                    "OOMKilled",
+                    "ImagePullBackOff",
+                    "ErrImagePull",
+                    "InvalidImageName",
                 ]
             ):
                 is_degraded = True
@@ -1459,7 +1631,12 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
 
             # Route to correct bucket
             if status in (
-                "Error", "Failed", "Completed", "OOMKilled", "CrashLoopBackOff", "Unknown"
+                "Error",
+                "Failed",
+                "Completed",
+                "OOMKilled",
+                "CrashLoopBackOff",
+                "Unknown",
             ):
                 deletable.append((pod_ns, pod_name, status))
             else:
@@ -1467,22 +1644,16 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 manual.append((pod_ns, pod_name, status))
 
         if not deletable and not manual:
-            return (
-                f"✅ No problem pods found{ns_label}!\n"
-                "All pods appear healthy. 🎉"
-            )
+            return f"✅ No problem pods found{ns_label}!\n" "All pods appear healthy. 🎉"
 
-        fixed_lines:  list[str] = []
+        fixed_lines: list[str] = []
         failed_lines: list[str] = []
 
         for pod_ns, pod_name, status in deletable:
             ok, out = await self._run_kubectl_command(
                 ["delete", "pod", pod_name, "-n", pod_ns, "--grace-period=0"]
             )
-            action = (
-                "Restarted" if status in ("CrashLoopBackOff",)
-                else "Cleaned up"
-            )
+            action = "Restarted" if status in ("CrashLoopBackOff",) else "Cleaned up"
             if ok:
                 icon = "♻️" if "Restart" in action else "🗑️"
                 suffix = " (controller will recreate it)" if status == "CrashLoopBackOff" else ""
@@ -1520,9 +1691,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
             sections.append("**Need manual attention:**\n" + "\n".join(manual_msgs))
 
         if total_fixed > 0:
-            sections.append(
-                "_Run `pods` or `!k8s pods` again in ~30 s to verify recovery._"
-            )
+            sections.append("_Run `pods` or `!k8s pods` again in ~30 s to verify recovery._")
 
         return "\n\n".join(sections)
 
@@ -1545,7 +1714,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 lines = ["📋 **Pending Approvals:**\n"]
                 for ap in pending:
                     risk_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(
-                        ap.risk_level.value.upper() if hasattr(ap, 'risk_level') else "MEDIUM", "⚠️"
+                        ap.risk_level.value.upper() if hasattr(ap, "risk_level") else "MEDIUM", "⚠️"
                     )
                     short_id = ap.approval_id[:8]
                     lines.append(
@@ -1637,6 +1806,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 elif sub == "close" and len(args) >= 2:
                     short_id = args[1]
                     from datetime import datetime, timezone
+
                     result = await conn.execute(
                         sql_text(
                             "UPDATE incidents SET status='resolved', resolved_at=:ts "
@@ -1716,23 +1886,21 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 user_id = uuid.UUID(session_data.user_id)
 
                 # Add user message to database
-                await context_builder.add_user_message(
-                    conversation_id, message.content
-                )
+                await context_builder.add_user_message(conversation_id, message.content)
 
                 # Build conversation context
                 system_prompt = PromptManager.get_system_prompt(message.channel_type)
-                
+
                 # Add MCP tools to system prompt if available
                 if self.mcp_manager:
                     try:
                         tools = await self.mcp_manager.list_all_tools()
                         if tools:
                             tools_description = self._format_tools_for_prompt(tools)
-                            system_prompt += f"\n\nAvailable Custom Tools:\n{tools_description}\n\nTo use a tool, include in your response: TOOL_CALL: tool_name(arg1=\"value1\", arg2=\"value2\")"
+                            system_prompt += f'\n\nAvailable Custom Tools:\n{tools_description}\n\nTo use a tool, include in your response: TOOL_CALL: tool_name(arg1="value1", arg2="value2")'
                     except Exception as e:
                         logger.warning("failed_to_get_mcp_tools", error=str(e))
-                
+
                 context = await context_builder.build_context(
                     conversation_id, system_prompt=system_prompt
                 )
@@ -1775,12 +1943,8 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                 )
 
                 # Update session activity
-                await session_mgr.update_session_activity(
-                    message.channel_type, message.user_id
-                )
-                await session_mgr.increment_message_count(
-                    message.channel_type, message.user_id
-                )
+                await session_mgr.update_session_activity(message.channel_type, message.user_id)
+                await session_mgr.increment_message_count(message.channel_type, message.user_id)
 
                 # Send response through channel
                 await self.router.send_message(
@@ -1804,7 +1968,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
             )
 
             # Send error message to user
-            error_message = "Sorry, I encountered an error processing your message. Please try again."
-            await self.router.send_message(
-                message.channel_type, message.user_id, error_message
+            error_message = (
+                "Sorry, I encountered an error processing your message. Please try again."
             )
+            await self.router.send_message(message.channel_type, message.user_id, error_message)

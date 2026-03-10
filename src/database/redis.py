@@ -51,9 +51,7 @@ class RedisCache:
         """Get value from cache."""
         return await self.client.get(key)
 
-    async def set(
-        self, key: str, value: str, ttl: int | None = None
-    ) -> bool:
+    async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
         """Set value in cache with optional TTL."""
         return await self.client.set(key, value, ex=ttl)
 

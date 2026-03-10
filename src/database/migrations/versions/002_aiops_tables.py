@@ -4,6 +4,7 @@ Revision ID: 002_aiops_tables
 Revises: 001
 Create Date: 2026-02-27
 """
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -29,7 +30,9 @@ def upgrade() -> None:
         sa.Column("resource_name", sa.String(255), nullable=True),
         sa.Column("root_cause", sa.Text, nullable=True),
         sa.Column("rca_confidence", sa.Float, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("extra_data", JSONB, server_default="{}", nullable=False),
     )
@@ -49,7 +52,9 @@ def upgrade() -> None:
         sa.Column("source", sa.String(50), nullable=False, server_default="watchloop"),
         sa.Column("labels", JSONB, server_default="{}", nullable=False),
         sa.Column("annotations", JSONB, server_default="{}", nullable=False),
-        sa.Column("fired_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "fired_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_alert_events_rule_name", "alert_events", ["rule_name"])
@@ -70,7 +75,9 @@ def upgrade() -> None:
         sa.Column("namespace", sa.String(255), nullable=True),
         sa.Column("initiator", sa.String(50), nullable=False, server_default="human"),
         sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
-        sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "started_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("output", sa.Text, nullable=True),
         sa.Column("error_msg", sa.Text, nullable=True),
@@ -90,12 +97,18 @@ def upgrade() -> None:
         sa.Column("resource_name", sa.String(255), nullable=False),
         sa.Column("spec_hash", sa.String(64), nullable=True),
         sa.Column("snapshot_data", JSONB, server_default="{}", nullable=False),
-        sa.Column("captured_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "captured_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     )
     op.create_index("ix_k8s_snapshot_namespace", "k8s_state_snapshots", ["namespace"])
     op.create_index("ix_k8s_snapshot_resource_kind", "k8s_state_snapshots", ["resource_kind"])
     op.create_index("ix_k8s_snapshot_captured_at", "k8s_state_snapshots", ["captured_at"])
-    op.create_index("ix_k8s_snapshot_resource", "k8s_state_snapshots", ["namespace", "resource_kind", "resource_name"])
+    op.create_index(
+        "ix_k8s_snapshot_resource",
+        "k8s_state_snapshots",
+        ["namespace", "resource_kind", "resource_name"],
+    )
 
     # audit_log
     op.create_table(
@@ -109,7 +122,9 @@ def upgrade() -> None:
         sa.Column("namespace", sa.String(255), nullable=True),
         sa.Column("result", sa.String(20), nullable=False, server_default="success"),
         sa.Column("error_msg", sa.Text, nullable=True),
-        sa.Column("timestamp", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "timestamp", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("extra_data", JSONB, server_default="{}", nullable=False),
     )
     op.create_index("ix_audit_log_user_id", "audit_log", ["user_id"])

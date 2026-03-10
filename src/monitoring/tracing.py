@@ -147,7 +147,9 @@ def _instrument_libraries() -> None:
     Each instrumentor is loaded lazily so missing packages are silently
     ignored rather than raising :class:`ImportError` at startup.
     """
-    _try_instrument("SQLAlchemy", "opentelemetry.instrumentation.sqlalchemy", "SQLAlchemyInstrumentor")
+    _try_instrument(
+        "SQLAlchemy", "opentelemetry.instrumentation.sqlalchemy", "SQLAlchemyInstrumentor"
+    )
     _try_instrument("Redis", "opentelemetry.instrumentation.redis", "RedisInstrumentor")
     _try_instrument("HTTPX", "opentelemetry.instrumentation.httpx", "HTTPXClientInstrumentor")
 

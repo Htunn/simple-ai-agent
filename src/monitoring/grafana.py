@@ -26,12 +26,15 @@ class GrafanaClient:
     def is_configured(self) -> bool:
         return bool(self._base_url and self._api_key)
 
-    async def post_annotation(self, text: str, tags: list[str] | None = None, time_ms: int | None = None) -> bool:
+    async def post_annotation(
+        self, text: str, tags: list[str] | None = None, time_ms: int | None = None
+    ) -> bool:
         """Post a Grafana annotation."""
         if not self.is_configured:
             return False
         try:
             import time as time_module
+
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(
                     f"{self._base_url}/api/annotations",

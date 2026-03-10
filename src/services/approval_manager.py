@@ -46,14 +46,15 @@ class ApprovalStatus(str, Enum):
 @dataclass
 class PendingApproval:
     """A pending action waiting for user approval."""
+
     approval_id: str
     tool_name: str
     tool_params: dict[str, Any]
     risk_level: RiskLevel
     description: str
-    requested_by: str          # user_id or "auto"
+    requested_by: str  # user_id or "auto"
     channel_type: str
-    channel_target: str        # chat_id or channel_id to reply to
+    channel_target: str  # chat_id or channel_id to reply to
     requested_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     playbook_run_id: str | None = None
     incident_id: str | None = None
@@ -169,11 +170,13 @@ class ApprovalManager:
                     approval.approval_id,
                 )
 
-            logger.info("approval_requested",
-                       approval_id=approval.approval_id,
-                       tool=tool_name,
-                       risk=risk_level.value,
-                       user=requested_by)
+            logger.info(
+                "approval_requested",
+                approval_id=approval.approval_id,
+                tool=tool_name,
+                risk=risk_level.value,
+                user=requested_by,
+            )
 
             # Persist to PostgreSQL for durable audit trail
             await self._write_audit_log(approval, "requested", actor=None)
@@ -194,8 +197,9 @@ class ApprovalManager:
           "reject abc12345"  | "no abc12345"  | "cancel abc12345"
         """
         import re
-        approve_match = re.search(r'\b(?:approve|yes|confirm)\s+([a-f0-9]{8})', text, re.IGNORECASE)
-        reject_match = re.search(r'\b(?:reject|no|cancel)\s+([a-f0-9]{8})', text, re.IGNORECASE)
+
+        approve_match = re.search(r"\b(?:approve|yes|confirm)\s+([a-f0-9]{8})", text, re.IGNORECASE)
+        reject_match = re.search(r"\b(?:reject|no|cancel)\s+([a-f0-9]{8})", text, re.IGNORECASE)
 
         if not approve_match and not reject_match:
             return None
@@ -215,10 +219,12 @@ class ApprovalManager:
 
     async def _execute_approval(self, approval: PendingApproval, approved_by: str) -> str:
         """Execute an approved action via MCP."""
-        logger.info("approval_executing",
-                   approval_id=approval.approval_id,
-                   tool=approval.tool_name,
-                   approved_by=approved_by)
+        logger.info(
+            "approval_executing",
+            approval_id=approval.approval_id,
+            tool=approval.tool_name,
+            approved_by=approved_by,
+        )
 
         if not self._mcp:
             await self._update_status(approval.approval_id, ApprovalStatus.APPROVED)
@@ -228,14 +234,18 @@ class ApprovalManager:
             result = await self._mcp.call_tool(approval.tool_name, approval.tool_params)
             await self._update_status(approval.approval_id, ApprovalStatus.EXECUTED)
             await self._write_audit_log(approval, "executed", actor=approved_by)
-            logger.info("approval_executed", approval_id=approval.approval_id, tool=approval.tool_name)
+            logger.info(
+                "approval_executed", approval_id=approval.approval_id, tool=approval.tool_name
+            )
             return (
                 f"✅ **{approval.description}** executed successfully.\n\n"
                 f"```\n{str(result)[:800]}\n```"
             )
         except Exception as e:
             await self._write_audit_log(approval, "failed", actor=approved_by, error_msg=str(e))
-            logger.error("approval_execution_failed", approval_id=approval.approval_id, error=str(e))
+            logger.error(
+                "approval_execution_failed", approval_id=approval.approval_id, error=str(e)
+            )
             return f"❌ Execution failed: {e}"
 
     async def _reject_approval(self, approval: PendingApproval, rejected_by: str) -> str:
@@ -327,7 +337,9 @@ class ApprovalManager:
         results = []
         cursor = 0
         while True:
-            cursor, keys = await self._redis.scan(cursor, match=f"{self.REDIS_KEY_PREFIX}*", count=100)
+            cursor, keys = await self._redis.scan(
+                cursor, match=f"{self.REDIS_KEY_PREFIX}*", count=100
+            )
             for key in keys:
                 data = await self._redis.get(key)
                 if data:

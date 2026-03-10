@@ -94,9 +94,7 @@ class ContextBuilder:
 
     async def get_message_stats(self, conversation_id: uuid.UUID) -> dict:
         """Get statistics about conversation messages."""
-        message_count = await self.message_repo.count_conversation_messages(
-            conversation_id
-        )
+        message_count = await self.message_repo.count_conversation_messages(conversation_id)
         total_tokens = await self.message_repo.get_total_tokens(conversation_id)
 
         return {

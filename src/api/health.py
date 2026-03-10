@@ -58,6 +58,7 @@ async def health_check() -> HealthResponse:
     if settings.k8s_watchloop_enabled:
         try:
             from src.k8s.client import get_k8s_client
+
             k8s_client = await get_k8s_client()
             ns_list = await k8s_client.list_namespaces()
             k8s_status = f"healthy ({len(ns_list)} namespaces)"
@@ -68,6 +69,7 @@ async def health_check() -> HealthResponse:
     if settings.k8s_watchloop_enabled:
         try:
             from src.main import get_watchloop
+
             wl = get_watchloop()
             if wl is None:
                 watchloop_status = "not_started"
@@ -80,6 +82,7 @@ async def health_check() -> HealthResponse:
     if settings.prometheus_url:
         try:
             from src.monitoring.prometheus import PrometheusClient
+
             prom = PrometheusClient()
             summary = await prom.get_cluster_health_summary()
             # summary is a dict; just confirm we got something
@@ -107,10 +110,7 @@ async def health_check() -> HealthResponse:
             active_incidents = 0
 
     # ── Overall status ────────────────────────────────────────────
-    degraded = any(
-        v.startswith("unhealthy")
-        for v in (db_status, redis_status)
-    )
+    degraded = any(v.startswith("unhealthy") for v in (db_status, redis_status))
     overall_status = "unhealthy" if degraded else "healthy"
 
     if overall_status == "unhealthy":
@@ -152,6 +152,7 @@ async def aiops_health() -> dict[str, Any]:
     # Watchloop
     try:
         from src.main import get_watchloop
+
         wl = get_watchloop()
         result["watchloop_running"] = bool(wl and wl.is_running)
     except Exception as e:
@@ -161,6 +162,7 @@ async def aiops_health() -> dict[str, Any]:
     if settings.prometheus_url:
         try:
             from src.monitoring.prometheus import PrometheusClient
+
             prom = PrometheusClient()
             result["cluster_health"] = await prom.get_cluster_health_summary()
             result["prometheus_reachable"] = True
@@ -171,6 +173,7 @@ async def aiops_health() -> dict[str, Any]:
     if settings.grafana_url:
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(f"{settings.grafana_url}/api/health")
                 result["grafana_reachable"] = resp.status_code < 500

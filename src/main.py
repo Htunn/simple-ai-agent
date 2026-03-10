@@ -83,14 +83,16 @@ async def lifespan(app: FastAPI):
     # Initialize MCP manager (manages multiple MCP servers with different transports)
     logger.info("initializing_mcp_manager")
     mcp_manager = MCPManager()
-    
+
     # Start all configured MCP servers
     try:
         if await mcp_manager.start():
             server_info = mcp_manager.get_server_info()
-            logger.info("mcp_servers_started", 
-                       servers=server_info['connected_servers'],
-                       total_tools=server_info['total_tools'])
+            logger.info(
+                "mcp_servers_started",
+                servers=server_info["connected_servers"],
+                total_tools=server_info["total_tools"],
+            )
         else:
             logger.warning("mcp_manager_initialization_failed")
             mcp_manager = None
@@ -115,6 +117,7 @@ async def lifespan(app: FastAPI):
     try:
         from src.database.redis import get_redis
         from src.services.approval_manager import ApprovalManager
+
         approval_manager = ApprovalManager(redis_client=get_redis(), mcp_manager=mcp_manager)
         # Expose on handler so NLP layer can forward approval responses
         handler.approval_manager = approval_manager
@@ -154,7 +157,12 @@ async def lifespan(app: FastAPI):
                         parts = settings.aiops_notification_channel.split(":", 1)
                         if len(parts) == 2:
                             ch_type, ch_id = parts
-                            icon = {"critical": "🚨", "high": "🔴", "medium": "🟡", "low": "🔵"}.get(event.severity, "⚠️")
+                            icon = {
+                                "critical": "🚨",
+                                "high": "🔴",
+                                "medium": "🟡",
+                                "low": "🔵",
+                            }.get(event.severity, "⚠️")
                             playbook_names = [r for _, r in matches]
                             alert_msg = (
                                 f"{icon} **AIOps Alert** [{event.severity.upper()}]\n"
@@ -164,7 +172,9 @@ async def lifespan(app: FastAPI):
                                 + f"\n{event.message}"
                             )
                             if matches:
-                                alert_msg += f"\n\n🔧 Playbooks queued: `{', '.join(playbook_names)}`"
+                                alert_msg += (
+                                    f"\n\n🔧 Playbooks queued: `{', '.join(playbook_names)}`"
+                                )
                                 if approval_manager:
                                     alert_msg += "\nHigh-risk steps will require your approval."
                             await router.send_message(ch_type, ch_id, alert_msg)
@@ -193,8 +203,11 @@ async def lifespan(app: FastAPI):
                                     steps_done=len(run.step_outputs),
                                 )
                             except Exception as pb_exc:
-                                logger.error("playbook_execution_error",
-                                             playbook=playbook_id, error=str(pb_exc))
+                                logger.error(
+                                    "playbook_execution_error",
+                                    playbook=playbook_id,
+                                    error=str(pb_exc),
+                                )
                 except Exception as exc:
                     logger.error("watchloop_event_handler_error", error=str(exc))
 

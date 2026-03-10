@@ -66,9 +66,7 @@ class ConversationRepository:
         )
         return conversation
 
-    async def get_or_create_active(
-        self, user_id: uuid.UUID, channel_type: str
-    ) -> Conversation:
+    async def get_or_create_active(self, user_id: uuid.UUID, channel_type: str) -> Conversation:
         """Get active conversation or create new one."""
         conversation = await self.get_active_by_user(user_id, channel_type)
         if conversation is None:

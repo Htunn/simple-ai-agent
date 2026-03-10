@@ -22,10 +22,7 @@ def configure_logging(log_level: str = "INFO") -> None:
     )
 
     # Choose renderer based on environment
-    use_json = (
-        not sys.stdout.isatty()
-        or os.getenv("LOG_FORMAT", "").lower() == "json"
-    )
+    use_json = not sys.stdout.isatty() or os.getenv("LOG_FORMAT", "").lower() == "json"
 
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
@@ -44,9 +41,7 @@ def configure_logging(log_level: str = "INFO") -> None:
     # Configure structlog
     structlog.configure(
         processors=shared_processors + [final_processor],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level.upper())
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level.upper())),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=False,

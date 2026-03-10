@@ -47,7 +47,9 @@ class PrometheusClient:
             data = resp.json()
             return data.get("data", {}).get("result", [])
 
-    async def query_range(self, promql: str, start: str, end: str, step: str = "1m") -> list[dict[str, Any]]:
+    async def query_range(
+        self, promql: str, start: str, end: str, step: str = "1m"
+    ) -> list[dict[str, Any]]:
         """Run a range PromQL query."""
         if not self.is_configured:
             return []
@@ -62,7 +64,9 @@ class PrometheusClient:
 
     # ── Convenience queries ───────────────────────────────────────────────────
 
-    async def get_pod_restart_rate(self, namespace: str = "", window: str = "5m") -> list[dict[str, Any]]:
+    async def get_pod_restart_rate(
+        self, namespace: str = "", window: str = "5m"
+    ) -> list[dict[str, Any]]:
         """Get pod restart rates over the given window."""
         ns_filter = f', namespace="{namespace}"' if namespace else ""
         return await self.query(
@@ -83,7 +87,9 @@ class PrometheusClient:
             f'kube_deployment_status_replicas_unavailable{{replicas_unavailable!="0"{ns_filter}}}'
         )
 
-    async def get_cpu_throttling(self, namespace: str = "", threshold: float = 0.5) -> list[dict[str, Any]]:
+    async def get_cpu_throttling(
+        self, namespace: str = "", threshold: float = 0.5
+    ) -> list[dict[str, Any]]:
         """Find pods with high CPU throttling ratio."""
         ns_filter = f', namespace="{namespace}"' if namespace else ""
         return await self.query(

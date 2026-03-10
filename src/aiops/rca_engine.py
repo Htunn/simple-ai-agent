@@ -21,9 +21,10 @@ Settings = get_settings
 @dataclass
 class RCAReport:
     """Structured output from the RCA engine."""
+
     root_cause: str
-    confidence: float          # 0.0 - 1.0
-    failure_pattern: str       # e.g., "OOMKill", "Config Error", "Network Timeout"
+    confidence: float  # 0.0 - 1.0
+    failure_pattern: str  # e.g., "OOMKill", "Config Error", "Network Timeout"
     recommended_actions: list[str]
     supporting_evidence: list[str]
     incident_context: dict[str, Any] = field(default_factory=dict)
@@ -95,6 +96,7 @@ class RCAEngine:
         user_message = self._build_context_message(incident_context)
         try:
             import json
+
             response = await asyncio.wait_for(
                 self._ai_client.complete(
                     system_prompt=_RCA_SYSTEM_PROMPT,
@@ -145,7 +147,9 @@ class RCAEngine:
             "## Recent Events",
         ]
         for ev in (ctx.get("events") or [])[:10]:
-            lines.append(f"- [{ev.get('type', '')}] {ev.get('reason', '')}: {ev.get('message', '')}")
+            lines.append(
+                f"- [{ev.get('type', '')}] {ev.get('reason', '')}: {ev.get('message', '')}"
+            )
 
         lines += ["", "## Recent Logs"]
         logs = ctx.get("logs", "")
@@ -174,7 +178,11 @@ class RCAEngine:
                 root_cause="Container exceeded memory limits and was killed by the OOM reaper",
                 confidence=0.85,
                 failure_pattern="OOMKill",
-                recommended_actions=["Increase memory limits", "Profile application memory usage", "Add memory limit alerts"],
+                recommended_actions=[
+                    "Increase memory limits",
+                    "Profile application memory usage",
+                    "Add memory limit alerts",
+                ],
                 supporting_evidence=["OOM kill detected in logs"],
                 incident_context=ctx,
             )
@@ -183,7 +191,11 @@ class RCAEngine:
                 root_cause="Application is crashing repeatedly due to an unhandled error on startup or runtime",
                 confidence=0.70,
                 failure_pattern="CrashLoop",
-                recommended_actions=["Check application logs for exceptions", "Verify configuration/secrets", "Check liveness probe settings"],
+                recommended_actions=[
+                    "Check application logs for exceptions",
+                    "Verify configuration/secrets",
+                    "Check liveness probe settings",
+                ],
                 supporting_evidence=[f"Pod has {restarts} restarts"],
                 incident_context=ctx,
             )
@@ -191,7 +203,11 @@ class RCAEngine:
             root_cause="Unknown — insufficient data for automated analysis",
             confidence=0.30,
             failure_pattern="Unknown",
-            recommended_actions=["Inspect pod events manually", "Review recent deployments", "Check cluster events"],
+            recommended_actions=[
+                "Inspect pod events manually",
+                "Review recent deployments",
+                "Check cluster events",
+            ],
             supporting_evidence=[],
             incident_context=ctx,
         )

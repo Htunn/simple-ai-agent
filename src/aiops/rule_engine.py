@@ -28,14 +28,15 @@ class RuleCondition(str, Enum):
 @dataclass
 class Rule:
     """A rule mapping a condition to a playbook."""
+
     id: str
     name: str
     condition: RuleCondition
     playbook_id: str
     enabled: bool = True
     # Optional filters: only trigger when labels/namespace match
-    namespace_filter: str | None = None   # regex pattern
-    severity_filter: str | None = None    # critical | warning | info
+    namespace_filter: str | None = None  # regex pattern
+    severity_filter: str | None = None  # critical | warning | info
     # Extra condition params (e.g., restart threshold)
     params: dict[str, Any] = field(default_factory=dict)
 
@@ -47,6 +48,7 @@ class Rule:
             return False
         if self.namespace_filter and event.get("namespace"):
             import re
+
             if not re.search(self.namespace_filter, event["namespace"]):
                 return False
         if self.severity_filter and event.get("severity") != self.severity_filter:
@@ -126,7 +128,12 @@ class RuleEngine:
         matches = []
         for rule in self._rules.values():
             if rule.matches(event):
-                logger.info("rule_matched", rule_id=rule.id, name=rule.name,
-                           event_type=event.get("event_type"), resource=event.get("resource_name"))
+                logger.info(
+                    "rule_matched",
+                    rule_id=rule.id,
+                    name=rule.name,
+                    event_type=event.get("event_type"),
+                    resource=event.get("resource_name"),
+                )
                 matches.append((rule, rule.playbook_id))
         return matches

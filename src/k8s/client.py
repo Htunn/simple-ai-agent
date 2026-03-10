@@ -71,11 +71,11 @@ class KubernetesClient:
                 raw_kubeconfig = os.environ.get("KUBECONFIG", "")
                 k8s_context = os.environ.get("K8S_CONTEXT") or None
 
-                candidates: list[str] = [
-                    p.strip()
-                    for p in raw_kubeconfig.split(":")
-                    if p.strip()
-                ] if raw_kubeconfig else []
+                candidates: list[str] = (
+                    [p.strip() for p in raw_kubeconfig.split(":") if p.strip()]
+                    if raw_kubeconfig
+                    else []
+                )
                 candidates.append(os.path.expanduser("~/.kube/config"))  # final fallback
 
                 loaded = False
@@ -108,9 +108,7 @@ class KubernetesClient:
                         )
 
                 if not loaded:
-                    raise RuntimeError(
-                        f"No usable kubeconfig found. Tried: {candidates}"
-                    )
+                    raise RuntimeError(f"No usable kubeconfig found. Tried: {candidates}")
 
             self._core_v1 = k8s_client.CoreV1Api()
             self._apps_v1 = k8s_client.AppsV1Api()
@@ -124,9 +122,7 @@ class KubernetesClient:
             # Do not re-raise — callers check is_available; K8s features are optional
             # Schedule a background retry so the client can recover without a full restart
             if self._retry_task is None or self._retry_task.done():
-                self._retry_task = asyncio.create_task(
-                    self._retry_loop(), name="k8s-client-retry"
-                )
+                self._retry_task = asyncio.create_task(self._retry_loop(), name="k8s-client-retry")
 
     async def _retry_loop(self) -> None:
         """Background task that retries K8s init at a fixed interval until successful."""
@@ -148,6 +144,7 @@ class KubernetesClient:
         """Extract proxy-url for the active context's cluster from a kubeconfig file."""
         try:
             import yaml
+
             with open(kubeconfig_path) as f:
                 kc = yaml.safe_load(f)
             ctx_name = context_name or kc.get("current-context", "")
@@ -176,9 +173,7 @@ class KubernetesClient:
                     maxsize = configuration.connection_pool_maxsize
                 ssl_ctx = _ssl.create_default_context(cafile=configuration.ssl_ca_cert)
                 if configuration.cert_file:
-                    ssl_ctx.load_cert_chain(
-                        configuration.cert_file, keyfile=configuration.key_file
-                    )
+                    ssl_ctx.load_cert_chain(configuration.cert_file, keyfile=configuration.key_file)
                 self.server_hostname = configuration.tls_server_name
                 if not configuration.verify_ssl:
                     ssl_ctx.check_hostname = False
@@ -189,7 +184,7 @@ class KubernetesClient:
                 self.pool_manager = _aio.ClientSession(
                     connector=connector,
                     trust_env=True,
-                    read_bufsize=2 ** 21,
+                    read_bufsize=2**21,
                 )
 
             _rest.RESTClientObject.__init__ = _patched_init
@@ -220,7 +215,9 @@ class KubernetesClient:
 
     # ── Pod Operations ─────────────────────────────────────────────────────────
 
-    async def list_pods(self, namespace: str = "default", label_selector: str | None = None) -> list[dict[str, Any]]:
+    async def list_pods(
+        self, namespace: str = "default", label_selector: str | None = None
+    ) -> list[dict[str, Any]]:
         """List pods in a namespace with their status."""
         resp = await self._core_v1.list_namespaced_pod(
             namespace=namespace,
@@ -236,9 +233,12 @@ class KubernetesClient:
         except Exception:
             return None
 
-    async def delete_pod(self, name: str, namespace: str = "default", grace_period: int = 0) -> bool:
+    async def delete_pod(
+        self, name: str, namespace: str = "default", grace_period: int = 0
+    ) -> bool:
         """Delete a pod (triggers restart if managed by a controller)."""
         from kubernetes_asyncio.client import V1DeleteOptions
+
         await self._core_v1.delete_namespaced_pod(
             name=name,
             namespace=namespace,
@@ -246,16 +246,24 @@ class KubernetesClient:
         )
         return True
 
-    async def get_pod_logs(self, name: str, namespace: str = "default",
-                           container: str | None = None, tail_lines: int = 100) -> str:
+    async def get_pod_logs(
+        self,
+        name: str,
+        namespace: str = "default",
+        container: str | None = None,
+        tail_lines: int = 100,
+    ) -> str:
         """Fetch pod logs."""
-        return await self._core_v1.read_namespaced_pod_log(
-            name=name,
-            namespace=namespace,
-            container=container,
-            tail_lines=tail_lines,
-            timestamps=True,
-        ) or ""
+        return (
+            await self._core_v1.read_namespaced_pod_log(
+                name=name,
+                namespace=namespace,
+                container=container,
+                tail_lines=tail_lines,
+                timestamps=True,
+            )
+            or ""
+        )
 
     # ── Deployment Operations ──────────────────────────────────────────────────
 
@@ -275,11 +283,14 @@ class KubernetesClient:
     async def scale_deployment(self, name: str, replicas: int, namespace: str = "default") -> bool:
         """Scale a deployment to the given replica count."""
         from kubernetes_asyncio.client import V1Scale, V1ScaleSpec, V1ObjectMeta
+
         scale = V1Scale(
             metadata=V1ObjectMeta(name=name, namespace=namespace),
             spec=V1ScaleSpec(replicas=replicas),
         )
-        await self._apps_v1.replace_namespaced_deployment_scale(name=name, namespace=namespace, body=scale)
+        await self._apps_v1.replace_namespaced_deployment_scale(
+            name=name, namespace=namespace, body=scale
+        )
         return True
 
     async def patch_deployment(self, name: str, namespace: str, patch: dict[str, Any]) -> bool:
@@ -287,9 +298,13 @@ class KubernetesClient:
         await self._apps_v1.patch_namespaced_deployment(name=name, namespace=namespace, body=patch)
         return True
 
-    async def update_deployment_image(self, name: str, namespace: str, container: str, image: str) -> bool:
+    async def update_deployment_image(
+        self, name: str, namespace: str, container: str, image: str
+    ) -> bool:
         """Update the container image in a deployment."""
-        patch = {"spec": {"template": {"spec": {"containers": [{"name": container, "image": image}]}}}}
+        patch = {
+            "spec": {"template": {"spec": {"containers": [{"name": container, "image": image}]}}}
+        }
         return await self.patch_deployment(name, namespace, patch)
 
     # ── Rollout Operations ────────────────────────────────────────────────────
@@ -297,12 +312,15 @@ class KubernetesClient:
     async def restart_deployment(self, name: str, namespace: str = "default") -> bool:
         """Trigger a rolling restart by patching the annotation."""
         from datetime import timezone, datetime
+
         patch = {
             "spec": {
                 "template": {
                     "metadata": {
                         "annotations": {
-                            "kubectl.kubernetes.io/restartedAt": datetime.now(timezone.utc).isoformat()
+                            "kubectl.kubernetes.io/restartedAt": datetime.now(
+                                timezone.utc
+                            ).isoformat()
                         }
                     }
                 }
@@ -310,7 +328,9 @@ class KubernetesClient:
         }
         return await self.patch_deployment(name, namespace, patch)
 
-    async def rollback_deployment(self, name: str, namespace: str = "default", revision: int | None = None) -> bool:
+    async def rollback_deployment(
+        self, name: str, namespace: str = "default", revision: int | None = None
+    ) -> bool:
         """Rollback a deployment to a previous revision via kubectl (no native API)."""
         cmd = ["kubectl", "rollout", "undo", f"deployment/{name}", "-n", namespace]
         if revision:
@@ -326,8 +346,14 @@ class KubernetesClient:
     async def get_rollout_history(self, name: str, namespace: str = "default") -> str:
         """Get rollout history for a deployment."""
         proc = await asyncio.create_subprocess_exec(
-            "kubectl", "rollout", "history", f"deployment/{name}", "-n", namespace,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            "kubectl",
+            "rollout",
+            "history",
+            f"deployment/{name}",
+            "-n",
+            namespace,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
@@ -337,8 +363,15 @@ class KubernetesClient:
     async def get_rollout_status(self, name: str, namespace: str = "default") -> str:
         """Get rollout status for a deployment."""
         proc = await asyncio.create_subprocess_exec(
-            "kubectl", "rollout", "status", f"deployment/{name}", "-n", namespace, "--timeout=30s",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            "kubectl",
+            "rollout",
+            "status",
+            f"deployment/{name}",
+            "-n",
+            namespace,
+            "--timeout=30s",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await proc.communicate()
         return stdout.decode()
@@ -362,7 +395,9 @@ class KubernetesClient:
         await self._core_v1.patch_node(name=name, body=patch)
         return True
 
-    async def drain_node(self, name: str, ignore_daemonsets: bool = True, delete_emissary_data: bool = True) -> str:
+    async def drain_node(
+        self, name: str, ignore_daemonsets: bool = True, delete_emissary_data: bool = True
+    ) -> str:
         """Drain a node of all pods."""
         cmd = ["kubectl", "drain", name, "--ignore-daemonsets"]
         if delete_emissary_data:
@@ -379,8 +414,13 @@ class KubernetesClient:
     async def taint_node(self, name: str, key: str, value: str, effect: str = "NoSchedule") -> bool:
         """Taint a node."""
         proc = await asyncio.create_subprocess_exec(
-            "kubectl", "taint", "node", name, f"{key}={value}:{effect}",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            "kubectl",
+            "taint",
+            "node",
+            name,
+            f"{key}={value}:{effect}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         _, stderr = await proc.communicate()
         if proc.returncode != 0:
@@ -389,13 +429,17 @@ class KubernetesClient:
 
     # ── Event & Metrics Operations ────────────────────────────────────────────
 
-    async def list_events(self, namespace: str = "default", field_selector: str | None = None) -> list[dict[str, Any]]:
+    async def list_events(
+        self, namespace: str = "default", field_selector: str | None = None
+    ) -> list[dict[str, Any]]:
         """List events in a namespace."""
         resp = await self._core_v1.list_namespaced_event(
             namespace=namespace,
             field_selector=field_selector or "",
         )
-        events = sorted(resp.items, key=lambda e: e.last_timestamp or e.event_time or "", reverse=True)
+        events = sorted(
+            resp.items, key=lambda e: e.last_timestamp or e.event_time or "", reverse=True
+        )
         return [self._event_to_dict(e) for e in events[:50]]
 
     async def get_crashloop_pods(self, namespace: str | None = None) -> list[dict[str, Any]]:
@@ -407,10 +451,12 @@ class KubernetesClient:
 
         results = []
         for pod in resp.items:
-            for cs in (pod.status.container_statuses or []):
+            for cs in pod.status.container_statuses or []:
                 # Waiting state: CrashLoopBackOff, waiting-Error, OOMKilled-before-restart
-                if cs.state and cs.state.waiting and cs.state.waiting.reason in (
-                    "CrashLoopBackOff", "Error", "OOMKilled"
+                if (
+                    cs.state
+                    and cs.state.waiting
+                    and cs.state.waiting.reason in ("CrashLoopBackOff", "Error", "OOMKilled")
                 ):
                     results.append(self._pod_to_dict(pod))
                     break
@@ -437,7 +483,9 @@ class KubernetesClient:
         nodes = await self.list_nodes()
         return [n for n in nodes if n.get("status") != "Ready"]
 
-    async def label_resource(self, resource_type: str, name: str, namespace: str, labels: dict[str, str]) -> bool:
+    async def label_resource(
+        self, resource_type: str, name: str, namespace: str, labels: dict[str, str]
+    ) -> bool:
         """Label a kubernetes resource."""
         label_args = [f"{k}={v}" for k, v in labels.items()]
         cmd = ["kubectl", "label", resource_type, name, "-n", namespace, "--overwrite"] + label_args
@@ -454,13 +502,30 @@ class KubernetesClient:
         Execute a command in a pod (allowlisted commands only for safety).
         Returns stdout output.
         """
-        ALLOWED_COMMANDS = {"ls", "cat", "echo", "env", "ps", "df", "free", "date", "hostname", "uptime", "curl", "wget"}
+        ALLOWED_COMMANDS = {
+            "ls",
+            "cat",
+            "echo",
+            "env",
+            "ps",
+            "df",
+            "free",
+            "date",
+            "hostname",
+            "uptime",
+            "curl",
+            "wget",
+        }
         if command and command[0] not in ALLOWED_COMMANDS:
-            raise ValueError(f"Command '{command[0]}' is not allowlisted for exec. Allowed: {sorted(ALLOWED_COMMANDS)}")
+            raise ValueError(
+                f"Command '{command[0]}' is not allowlisted for exec. Allowed: {sorted(ALLOWED_COMMANDS)}"
+            )
 
         cmd = ["kubectl", "exec", pod_name, "-n", namespace, "--"] + command
         proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
@@ -539,7 +604,9 @@ class KubernetesClient:
             "message": e.message,
             "type": e.type,
             "count": e.count,
-            "involved_object": f"{e.involved_object.kind}/{e.involved_object.name}" if e.involved_object else "",
+            "involved_object": (
+                f"{e.involved_object.kind}/{e.involved_object.name}" if e.involved_object else ""
+            ),
             "last_timestamp": str(e.last_timestamp or e.event_time or ""),
         }
 

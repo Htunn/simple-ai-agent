@@ -42,7 +42,7 @@ class SlackAdapter(ChannelAdapter):
     def parse_message(self, event: Any) -> Optional[ChannelMessage]:
         """
         Parse Slack event.
-        
+
         Handles both message events and direct mentions.
         """
         if not isinstance(event, dict):
@@ -60,7 +60,7 @@ class SlackAdapter(ChannelAdapter):
 
             # Extract message content
             text = event.get("text", "")
-            
+
             # Remove bot mention if present
             if self._bot_user_id and f"<@{self._bot_user_id}>" in text:
                 text = text.replace(f"<@{self._bot_user_id}>", "").strip()
@@ -76,7 +76,7 @@ class SlackAdapter(ChannelAdapter):
         # Handle app mention events
         elif event.get("type") == "app_mention":
             text = event.get("text", "")
-            
+
             # Remove bot mention
             if self._bot_user_id and f"<@{self._bot_user_id}>" in text:
                 text = text.replace(f"<@{self._bot_user_id}>", "").strip()

@@ -17,11 +17,7 @@ import structlog
 from src.mcp.stdio_transport import StdioTransport
 
 # Configure logging to stderr only (stdout is for JSON-RPC)
-logging.basicConfig(
-    format="%(message)s",
-    stream=sys.stderr,
-    level=logging.INFO
-)
+logging.basicConfig(format="%(message)s", stream=sys.stderr, level=logging.INFO)
 
 structlog.configure(
     processors=[
@@ -41,10 +37,10 @@ logger = structlog.get_logger()
 class KubernetesMCPServer:
     """
     MCP Server for Kubernetes operations.
-    
+
     Implements the Model Context Protocol for Kubernetes management,
     exposing kubectl operations as MCP tools.
-    
+
     Protocol methods:
     - initialize: Initialize the server
     - tools/list: List available tools
@@ -53,25 +49,20 @@ class KubernetesMCPServer:
 
     def __init__(self):
         """Initialize the Kubernetes MCP server."""
-        self.server_info = {
-            "name": "kubernetes-mcp-server",
-            "version": "1.0.0"
-        }
-        self.capabilities = {
-            "tools": {}
-        }
+        self.server_info = {"name": "kubernetes-mcp-server", "version": "1.0.0"}
+        self.capabilities = {"tools": {}}
         self.transport = StdioTransport()
         self.initialized = False
-        
+
         # Tool definitions following MCP specification
         self.tools = self._define_tools()
-        
+
         logger.info("kubernetes_mcp_server_initialized", tools_count=len(self.tools))
 
     def _define_tools(self) -> List[Dict[str, Any]]:
         """
         Define available Kubernetes tools with their schemas.
-        
+
         Returns:
             List of tool definitions with inputSchema
         """
@@ -84,22 +75,19 @@ class KubernetesMCPServer:
                     "properties": {
                         "namespace": {
                             "type": "string",
-                            "description": "Kubernetes namespace (default: current context namespace)"
+                            "description": "Kubernetes namespace (default: current context namespace)",
                         },
                         "label_selector": {
                             "type": "string",
-                            "description": "Label selector to filter pods"
-                        }
-                    }
-                }
+                            "description": "Label selector to filter pods",
+                        },
+                    },
+                },
             },
             {
                 "name": "k8s_get_nodes",
                 "description": "List all nodes in the Kubernetes cluster",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
+                "inputSchema": {"type": "object", "properties": {}},
             },
             {
                 "name": "k8s_get_deployments",
@@ -107,12 +95,9 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "namespace": {
-                            "type": "string",
-                            "description": "Kubernetes namespace"
-                        }
-                    }
-                }
+                        "namespace": {"type": "string", "description": "Kubernetes namespace"}
+                    },
+                },
             },
             {
                 "name": "k8s_get_services",
@@ -120,20 +105,14 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "namespace": {
-                            "type": "string",
-                            "description": "Kubernetes namespace"
-                        }
-                    }
-                }
+                        "namespace": {"type": "string", "description": "Kubernetes namespace"}
+                    },
+                },
             },
             {
                 "name": "k8s_get_namespaces",
                 "description": "List all namespaces in the cluster",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
+                "inputSchema": {"type": "object", "properties": {}},
             },
             {
                 "name": "k8s_get_logs",
@@ -141,25 +120,16 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "pod_name": {
-                            "type": "string",
-                            "description": "Name of the pod"
-                        },
-                        "namespace": {
-                            "type": "string",
-                            "description": "Namespace of the pod"
-                        },
-                        "container": {
-                            "type": "string",
-                            "description": "Container name (optional)"
-                        },
+                        "pod_name": {"type": "string", "description": "Name of the pod"},
+                        "namespace": {"type": "string", "description": "Namespace of the pod"},
+                        "container": {"type": "string", "description": "Container name (optional)"},
                         "tail_lines": {
                             "type": "integer",
-                            "description": "Number of lines to tail (default: 50)"
-                        }
+                            "description": "Number of lines to tail (default: 50)",
+                        },
                     },
-                    "required": ["pod_name"]
-                }
+                    "required": ["pod_name"],
+                },
             },
             {
                 "name": "k8s_scale_deployment",
@@ -167,21 +137,12 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "deployment": {
-                            "type": "string",
-                            "description": "Deployment name"
-                        },
-                        "replicas": {
-                            "type": "integer",
-                            "description": "Number of replicas"
-                        },
-                        "namespace": {
-                            "type": "string",
-                            "description": "Namespace"
-                        }
+                        "deployment": {"type": "string", "description": "Deployment name"},
+                        "replicas": {"type": "integer", "description": "Number of replicas"},
+                        "namespace": {"type": "string", "description": "Namespace"},
                     },
-                    "required": ["deployment", "replicas"]
-                }
+                    "required": ["deployment", "replicas"],
+                },
             },
             {
                 "name": "k8s_describe_resource",
@@ -191,69 +152,44 @@ class KubernetesMCPServer:
                     "properties": {
                         "resource_type": {
                             "type": "string",
-                            "description": "Resource type (pod, deployment, service, etc.)"
+                            "description": "Resource type (pod, deployment, service, etc.)",
                         },
-                        "resource_name": {
-                            "type": "string",
-                            "description": "Resource name"
-                        },
-                        "namespace": {
-                            "type": "string",
-                            "description": "Namespace"
-                        }
+                        "resource_name": {"type": "string", "description": "Resource name"},
+                        "namespace": {"type": "string", "description": "Namespace"},
                     },
-                    "required": ["resource_type", "resource_name"]
-                }
+                    "required": ["resource_type", "resource_name"],
+                },
             },
             {
                 "name": "k8s_get_events",
                 "description": "Get events in a namespace",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {
-                        "namespace": {
-                            "type": "string",
-                            "description": "Namespace"
-                        }
-                    }
-                }
+                    "properties": {"namespace": {"type": "string", "description": "Namespace"}},
+                },
             },
             {
                 "name": "k8s_top_pods",
                 "description": "Show resource usage for pods",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {
-                        "namespace": {
-                            "type": "string",
-                            "description": "Namespace"
-                        }
-                    }
-                }
+                    "properties": {"namespace": {"type": "string", "description": "Namespace"}},
+                },
             },
             {
                 "name": "k8s_top_nodes",
                 "description": "Show resource usage for nodes",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
+                "inputSchema": {"type": "object", "properties": {}},
             },
             {
                 "name": "k8s_get_contexts",
                 "description": "List available kubectl contexts",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
+                "inputSchema": {"type": "object", "properties": {}},
             },
             {
                 "name": "k8s_current_context",
                 "description": "Get the current kubectl context",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
+                "inputSchema": {"type": "object", "properties": {}},
             },
             # ── Self-Healing / AIOps Tools ────────────────────────────────────
             {
@@ -263,10 +199,14 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "pod_name": {"type": "string", "description": "Name of the pod to restart"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
                     },
-                    "required": ["pod_name"]
-                }
+                    "required": ["pod_name"],
+                },
             },
             {
                 "name": "k8s_restart_deployment",
@@ -275,10 +215,14 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "deployment_name": {"type": "string", "description": "Deployment name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
                     },
-                    "required": ["deployment_name"]
-                }
+                    "required": ["deployment_name"],
+                },
             },
             {
                 "name": "k8s_rollback_deployment",
@@ -287,11 +231,18 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "deployment_name": {"type": "string", "description": "Deployment name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"},
-                        "revision": {"type": "integer", "description": "Specific revision to roll back to (optional, defaults to previous)"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
+                        "revision": {
+                            "type": "integer",
+                            "description": "Specific revision to roll back to (optional, defaults to previous)",
+                        },
                     },
-                    "required": ["deployment_name"]
-                }
+                    "required": ["deployment_name"],
+                },
             },
             {
                 "name": "k8s_rollout_status",
@@ -300,10 +251,14 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "deployment_name": {"type": "string", "description": "Deployment name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
                     },
-                    "required": ["deployment_name"]
-                }
+                    "required": ["deployment_name"],
+                },
             },
             {
                 "name": "k8s_get_rollout_history",
@@ -312,32 +267,32 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "deployment_name": {"type": "string", "description": "Deployment name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
                     },
-                    "required": ["deployment_name"]
-                }
+                    "required": ["deployment_name"],
+                },
             },
             {
                 "name": "k8s_cordon_node",
                 "description": "Cordon a node to prevent new pods from being scheduled on it.",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {
-                        "node_name": {"type": "string", "description": "Node name"}
-                    },
-                    "required": ["node_name"]
-                }
+                    "properties": {"node_name": {"type": "string", "description": "Node name"}},
+                    "required": ["node_name"],
+                },
             },
             {
                 "name": "k8s_uncordon_node",
                 "description": "Uncordon a node to allow pods to be scheduled on it again.",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {
-                        "node_name": {"type": "string", "description": "Node name"}
-                    },
-                    "required": ["node_name"]
-                }
+                    "properties": {"node_name": {"type": "string", "description": "Node name"}},
+                    "required": ["node_name"],
+                },
             },
             {
                 "name": "k8s_drain_node",
@@ -346,10 +301,10 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "node_name": {"type": "string", "description": "Node name"},
-                        "ignore_daemonsets": {"type": "boolean", "default": True}
+                        "ignore_daemonsets": {"type": "boolean", "default": True},
                     },
-                    "required": ["node_name"]
-                }
+                    "required": ["node_name"],
+                },
             },
             {
                 "name": "k8s_force_delete_pod",
@@ -358,10 +313,14 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "pod_name": {"type": "string", "description": "Pod name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
                     },
-                    "required": ["pod_name"]
-                }
+                    "required": ["pod_name"],
+                },
             },
             {
                 "name": "k8s_update_image",
@@ -370,12 +329,19 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "deployment_name": {"type": "string", "description": "Deployment name"},
-                        "container_name": {"type": "string", "description": "Container name within the pod spec"},
+                        "container_name": {
+                            "type": "string",
+                            "description": "Container name within the pod spec",
+                        },
                         "image": {"type": "string", "description": "New image (e.g. nginx:1.25.3)"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
                     },
-                    "required": ["deployment_name", "container_name", "image"]
-                }
+                    "required": ["deployment_name", "container_name", "image"],
+                },
             },
             {
                 "name": "k8s_patch_resource",
@@ -383,13 +349,20 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "resource_type": {"type": "string", "description": "Resource type (deployment, configmap, etc.)"},
+                        "resource_type": {
+                            "type": "string",
+                            "description": "Resource type (deployment, configmap, etc.)",
+                        },
                         "resource_name": {"type": "string", "description": "Resource name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"},
-                        "patch": {"type": "string", "description": "JSON merge patch string"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
+                        "patch": {"type": "string", "description": "JSON merge patch string"},
                     },
-                    "required": ["resource_type", "resource_name", "patch"]
-                }
+                    "required": ["resource_type", "resource_name", "patch"],
+                },
             },
             {
                 "name": "k8s_analyze_logs",
@@ -398,11 +371,19 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "pod_name": {"type": "string", "description": "Pod name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"},
-                        "tail_lines": {"type": "integer", "description": "Number of log lines to analyze", "default": 100}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
+                        "tail_lines": {
+                            "type": "integer",
+                            "description": "Number of log lines to analyze",
+                            "default": 100,
+                        },
                     },
-                    "required": ["pod_name"]
-                }
+                    "required": ["pod_name"],
+                },
             },
             {
                 "name": "k8s_label_resource",
@@ -410,13 +391,23 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "resource_type": {"type": "string", "description": "Resource type (pod, deployment, node, etc.)"},
+                        "resource_type": {
+                            "type": "string",
+                            "description": "Resource type (pod, deployment, node, etc.)",
+                        },
                         "resource_name": {"type": "string", "description": "Resource name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"},
-                        "labels": {"type": "object", "description": "Key-value label pairs to add/update"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
+                        "labels": {
+                            "type": "object",
+                            "description": "Key-value label pairs to add/update",
+                        },
                     },
-                    "required": ["resource_type", "resource_name", "labels"]
-                }
+                    "required": ["resource_type", "resource_name", "labels"],
+                },
             },
             {
                 "name": "k8s_exec_command",
@@ -425,11 +416,19 @@ class KubernetesMCPServer:
                     "type": "object",
                     "properties": {
                         "pod_name": {"type": "string", "description": "Pod name"},
-                        "namespace": {"type": "string", "description": "Kubernetes namespace", "default": "default"},
-                        "command": {"type": "array", "items": {"type": "string"}, "description": "Command and arguments (allowlisted: ls, cat, env, ps, df, free, date, hostname, uptime, curl)"}
+                        "namespace": {
+                            "type": "string",
+                            "description": "Kubernetes namespace",
+                            "default": "default",
+                        },
+                        "command": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Command and arguments (allowlisted: ls, cat, env, ps, df, free, date, hostname, uptime, curl)",
+                        },
                     },
-                    "required": ["pod_name", "command"]
-                }
+                    "required": ["pod_name", "command"],
+                },
             },
             {
                 "name": "k8s_get_crashloop_pods",
@@ -437,10 +436,13 @@ class KubernetesMCPServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "namespace": {"type": "string", "description": "Namespace to scan (omit for all namespaces)"}
-                    }
-                }
-            }
+                        "namespace": {
+                            "type": "string",
+                            "description": "Namespace to scan (omit for all namespaces)",
+                        }
+                    },
+                },
+            },
         ]
 
     async def start(self):
@@ -451,10 +453,10 @@ class KubernetesMCPServer:
     async def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle incoming JSON-RPC requests.
-        
+
         Args:
             request: JSON-RPC request object
-            
+
         Returns:
             JSON-RPC response object
         """
@@ -473,49 +475,38 @@ class KubernetesMCPServer:
                 result = await self._handle_tools_call(params)
             else:
                 return self._create_error_response(
-                    request_id,
-                    -32601,
-                    f"Method not found: {method}"
+                    request_id, -32601, f"Method not found: {method}"
                 )
 
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": result
-            }
+            return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
         except Exception as e:
             logger.error("request_handling_error", method=method, error=str(e))
-            return self._create_error_response(
-                request_id,
-                -32603,
-                "Internal error",
-                str(e)
-            )
+            return self._create_error_response(request_id, -32603, "Internal error", str(e))
 
     async def _handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle initialize request.
-        
+
         Args:
             params: Initialize parameters
-            
+
         Returns:
             Server info and capabilities
         """
         self.initialized = True
         logger.info("server_initialized", client_info=params.get("clientInfo"))
-        
+
         return {
             "protocolVersion": "2024-11-05",
             "capabilities": self.capabilities,
-            "serverInfo": self.server_info
+            "serverInfo": self.server_info,
         }
 
     async def _handle_tools_list(self) -> Dict[str, Any]:
         """
         Handle tools/list request.
-        
+
         Returns:
             List of available tools
         """
@@ -525,10 +516,10 @@ class KubernetesMCPServer:
     async def _handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle tools/call request.
-        
+
         Args:
             params: Tool call parameters with 'name' and 'arguments'
-            
+
         Returns:
             Tool execution result
         """
@@ -572,66 +563,57 @@ class KubernetesMCPServer:
 
         if not tool_name or tool_name not in handler_map:
             raise ValueError(f"Unknown tool: {tool_name}")
-        
+
         handler = handler_map[tool_name]
 
         result = await handler(arguments)
-        
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": result
-                }
-            ]
-        }
+
+        return {"content": [{"type": "text", "text": result}]}
 
     async def _run_kubectl(self, args: List[str]) -> str:
         """
         Execute a kubectl command.
-        
+
         Args:
             args: kubectl command arguments
-            
+
         Returns:
             Command output
         """
         try:
             cmd = ["kubectl"] + args
             logger.debug("executing_kubectl", args=args)
-            
+
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
                 logger.error("kubectl_error", args=args, error=error_msg)
                 return f"Error: {error_msg}"
-            
+
             output = stdout.decode().strip()
             logger.debug("kubectl_success", args=args, output_length=len(output))
             return output
-            
+
         except Exception as e:
             logger.error("kubectl_execution_error", error=str(e))
             return f"Error executing kubectl: {str(e)}"
 
     # Tool implementations
-    
+
     async def _kubectl_get_pods(self, args: Dict[str, Any]) -> str:
         """Get pods in a namespace."""
         namespace = args.get("namespace", "default")
         label_selector = args.get("label_selector")
-        
+
         cmd_args = ["get", "pods", "-n", namespace]
         if label_selector:
             cmd_args.extend(["-l", label_selector])
-        
+
         return await self._run_kubectl(cmd_args)
 
     async def _kubectl_get_nodes(self, args: Dict[str, Any]) -> str:
@@ -658,11 +640,11 @@ class KubernetesMCPServer:
         namespace = args.get("namespace", "default")
         container = args.get("container")
         tail_lines = args.get("tail_lines", 50)
-        
+
         cmd_args = ["logs", pod_name, "-n", namespace, "--tail", str(tail_lines)]
         if container:
             cmd_args.extend(["-c", container])
-        
+
         return await self._run_kubectl(cmd_args)
 
     async def _kubectl_scale_deployment(self, args: Dict[str, Any]) -> str:
@@ -670,23 +652,21 @@ class KubernetesMCPServer:
         deployment = args["deployment"]
         replicas = args["replicas"]
         namespace = args.get("namespace", "default")
-        
-        return await self._run_kubectl([
-            "scale", "deployment", deployment,
-            "--replicas", str(replicas),
-            "-n", namespace
-        ])
+
+        return await self._run_kubectl(
+            ["scale", "deployment", deployment, "--replicas", str(replicas), "-n", namespace]
+        )
 
     async def _kubectl_describe_resource(self, args: Dict[str, Any]) -> str:
         """Describe a Kubernetes resource."""
         resource_type = args["resource_type"]
         resource_name = args["resource_name"]
         namespace = args.get("namespace")
-        
+
         cmd_args = ["describe", resource_type, resource_name]
         if namespace:
             cmd_args.extend(["-n", namespace])
-        
+
         return await self._run_kubectl(cmd_args)
 
     async def _kubectl_get_events(self, args: Dict[str, Any]) -> str:
@@ -724,7 +704,9 @@ class KubernetesMCPServer:
         """Trigger a rolling restart of a deployment."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
-        return await self._run_kubectl(["rollout", "restart", f"deployment/{deployment_name}", "-n", namespace])
+        return await self._run_kubectl(
+            ["rollout", "restart", f"deployment/{deployment_name}", "-n", namespace]
+        )
 
     async def _kubectl_rollback_deployment(self, args: Dict[str, Any]) -> str:
         """Rollback a deployment to a previous revision."""
@@ -740,13 +722,17 @@ class KubernetesMCPServer:
         """Check rollout status of a deployment."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
-        return await self._run_kubectl(["rollout", "status", f"deployment/{deployment_name}", "-n", namespace, "--timeout=60s"])
+        return await self._run_kubectl(
+            ["rollout", "status", f"deployment/{deployment_name}", "-n", namespace, "--timeout=60s"]
+        )
 
     async def _kubectl_get_rollout_history(self, args: Dict[str, Any]) -> str:
         """Get rollout history for a deployment."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
-        return await self._run_kubectl(["rollout", "history", f"deployment/{deployment_name}", "-n", namespace])
+        return await self._run_kubectl(
+            ["rollout", "history", f"deployment/{deployment_name}", "-n", namespace]
+        )
 
     async def _kubectl_cordon_node(self, args: Dict[str, Any]) -> str:
         """Cordon a node to prevent new pod scheduling."""
@@ -771,10 +757,9 @@ class KubernetesMCPServer:
         """Force delete a stuck Terminating pod."""
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
-        return await self._run_kubectl([
-            "delete", "pod", pod_name, "-n", namespace,
-            "--grace-period=0", "--force"
-        ])
+        return await self._run_kubectl(
+            ["delete", "pod", pod_name, "-n", namespace, "--grace-period=0", "--force"]
+        )
 
     async def _kubectl_update_image(self, args: Dict[str, Any]) -> str:
         """Update the container image in a deployment."""
@@ -782,10 +767,16 @@ class KubernetesMCPServer:
         container_name = args["container_name"]
         image = args["image"]
         namespace = args.get("namespace", "default")
-        return await self._run_kubectl([
-            "set", "image", f"deployment/{deployment_name}",
-            f"{container_name}={image}", "-n", namespace
-        ])
+        return await self._run_kubectl(
+            [
+                "set",
+                "image",
+                f"deployment/{deployment_name}",
+                f"{container_name}={image}",
+                "-n",
+                namespace,
+            ]
+        )
 
     async def _kubectl_patch_resource(self, args: Dict[str, Any]) -> str:
         """Apply a strategic merge patch to a resource."""
@@ -804,12 +795,15 @@ class KubernetesMCPServer:
         namespace = args.get("namespace", "default")
         tail_lines = args.get("tail_lines", 100)
 
-        logs = await self._run_kubectl(["logs", pod_name, "-n", namespace, "--tail", str(tail_lines)])
+        logs = await self._run_kubectl(
+            ["logs", pod_name, "-n", namespace, "--tail", str(tail_lines)]
+        )
         if logs.startswith("Error:"):
             return logs
 
         try:
             from src.aiops.log_analyzer import LogAnalyzer
+
             analyzer = LogAnalyzer()
             result = analyzer.analyze(pod_name=pod_name, namespace=namespace, logs=logs)
             return result.to_markdown()
@@ -835,7 +829,20 @@ class KubernetesMCPServer:
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
         command = args.get("command", [])
-        ALLOWED = {"ls", "cat", "echo", "env", "ps", "df", "free", "date", "hostname", "uptime", "curl", "wget"}
+        ALLOWED = {
+            "ls",
+            "cat",
+            "echo",
+            "env",
+            "ps",
+            "df",
+            "free",
+            "date",
+            "hostname",
+            "uptime",
+            "curl",
+            "wget",
+        }
         if not command or command[0] not in ALLOWED:
             return f"Error: Command '{command[0] if command else ''}' not in allowlist. Allowed: {sorted(ALLOWED)}"
         return await self._run_kubectl(["exec", pod_name, "-n", namespace, "--"] + command)
@@ -849,7 +856,14 @@ class KubernetesMCPServer:
             result = await self._run_kubectl(["get", "pods", "--all-namespaces", "-o", "wide"])
 
         # Filter lines by bad statuses
-        bad_statuses = {"CrashLoopBackOff", "Error", "OOMKilled", "ImagePullBackOff", "ErrImagePull", "Terminating"}
+        bad_statuses = {
+            "CrashLoopBackOff",
+            "Error",
+            "OOMKilled",
+            "ImagePullBackOff",
+            "ErrImagePull",
+            "Terminating",
+        }
         lines = result.split("\n")
         header = lines[0] if lines else ""
         bad_lines = [l for l in lines[1:] if any(s in l for s in bad_statuses)]
@@ -858,25 +872,14 @@ class KubernetesMCPServer:
         return f"{header}\n" + "\n".join(bad_lines)
 
     def _create_error_response(
-        self,
-        request_id: Any,
-        code: int,
-        message: str,
-        data: Optional[Any] = None
+        self, request_id: Any, code: int, message: str, data: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Create a JSON-RPC error response."""
-        response = {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {
-                "code": code,
-                "message": message
-            }
-        }
-        
+        response = {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+
         if data is not None:
             response["error"]["data"] = data
-            
+
         return response
 
 
