@@ -24,7 +24,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install black ruff mypy
+          pip install "black==24.8.0" ruff mypy
 
       - name: Check formatting (black)
         run: black --check src/
