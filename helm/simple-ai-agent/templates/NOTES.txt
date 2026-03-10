@@ -1,0 +1,64 @@
+1. Get the application URL:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "simple-ai-agent.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch its status by running:
+               kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "simple-ai-agent.fullname" . }}
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "simple-ai-agent.fullname" . }} --template "{{"{{range (index .status.loadBalancer.ingress 0)}}{{.}}{{end}}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "simple-ai-agent.fullname" . }} 8080:{{ .Values.service.port }}
+  echo "Visit http://127.0.0.1:8080 to use your application"
+{{- end }}
+
+2. Health endpoints:
+   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "simple-ai-agent.fullname" . }} 8080:{{ .Values.service.port }}
+   curl http://127.0.0.1:8080/health   # liveness
+   curl http://127.0.0.1:8080/ready    # readiness
+   curl http://127.0.0.1:8080/metrics  # Prometheus metrics
+
+{{- if .Values.postgresql.enabled }}
+
+3. PostgreSQL is deployed as part of this release.
+   Connection string is auto-configured inside the pod.
+{{- else }}
+3. Using EXTERNAL PostgreSQL: {{ .Values.secrets.externalDatabaseUrl | default "(not set)" }}
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+
+4. Redis is deployed as part of this release.
+{{- else }}
+4. Using EXTERNAL Redis: {{ .Values.secrets.externalRedisUrl | default "(not set)" }}
+{{- end }}
+
+{{- if index .Values "prometheus-stack" "enabled" }}
+
+5. Prometheus + Grafana + Alertmanager deployed via kube-prometheus-stack.
+   Grafana:
+     kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-prometheus-stack-grafana 3000:80
+     echo "Grafana available at http://127.0.0.1:3000  (admin / {{ index .Values "prometheus-stack" "grafana" "adminPassword" }})"
+{{- else if .Values.external.prometheus.url }}
+
+5. Using EXTERNAL Prometheus: {{ .Values.external.prometheus.url }}
+   Using EXTERNAL Grafana:    {{ .Values.external.grafana.url | default "(not set)" }}
+{{- end }}
+
+{{- if .Values.jaeger.enabled }}
+
+6. Jaeger all-in-one is deployed.
+   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-jaeger-query 16686:16686
+   echo "Jaeger UI at http://127.0.0.1:16686"
+{{- else if and .Values.otel.enabled .Values.otel.endpoint }}
+
+6. OpenTelemetry enabled → sending traces to: {{ .Values.otel.endpoint }}
+{{- end }}

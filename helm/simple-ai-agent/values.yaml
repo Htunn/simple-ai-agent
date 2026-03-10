@@ -1,0 +1,316 @@
+# Default values for simple-ai-agent.
+# Override with: helm install ai-agent ./helm/simple-ai-agent -f my-values.yaml
+
+# ---------------------------------------------------------------------------
+# Image
+# ---------------------------------------------------------------------------
+image:
+  repository: simple-ai-agent
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# ---------------------------------------------------------------------------
+# Service Account
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ---------------------------------------------------------------------------
+# Pod settings
+# ---------------------------------------------------------------------------
+replicaCount: 1
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# ---------------------------------------------------------------------------
+# Secrets — sensitive credentials (stored in a Kubernetes Secret)
+# ---------------------------------------------------------------------------
+secrets:
+  # GitHub Models API token (required)
+  githubToken: ""
+
+  # Telegram Bot token (optional — one of slack/telegram required)
+  telegramToken: ""
+  telegramWebhookSecret: ""
+
+  # Slack Bot (optional)
+  slackBotToken: ""
+  slackSigningSecret: ""
+
+  # Grafana API key (only needed when grafana metrics query is used)
+  grafanaApiKey: ""
+
+  # Alertmanager webhook secret
+  alertmanagerWebhookSecret: ""
+
+  # External database URL — used ONLY when postgresql.enabled=false
+  # Example: "postgresql+asyncpg://user:pass@host:5432/dbname"
+  externalDatabaseUrl: ""
+
+  # External Redis URL — used ONLY when redis.enabled=false
+  # Example: "redis://user:pass@host:6379/0"
+  externalRedisUrl: ""
+
+# ---------------------------------------------------------------------------
+# Application configuration (stored in a ConfigMap)
+# ---------------------------------------------------------------------------
+app:
+  logLevel: "INFO"
+  environment: "production"
+  defaultModel: "gpt-4"
+  sessionTtlSeconds: "3600"
+  rateLimitPerMinute: "60"
+  apiHost: "0.0.0.0"
+  apiPort: "8000"
+
+  # AIOps settings
+  aiops:
+    k8sWatchloopEnabled: "false"
+    k8sWatchloopInterval: "60"
+    autoRemediationEnabled: "false"
+    aiopsNotificationChannel: ""
+    approvalTimeoutSeconds: "300"
+    rcaTimeoutSeconds: "120"
+    logAiTimeoutSeconds: "60"
+    mcpToolTimeoutSeconds: "30"
+    maxLogBytes: "10485760"
+
+  # Kubernetes config (mounted volume path inside pod)
+  kubeConfigPath: "/app/.kube/config"
+  mcpConfigPath: "/app/.mcp-config.json"
+
+# ---------------------------------------------------------------------------
+# OpenTelemetry
+# ---------------------------------------------------------------------------
+otel:
+  enabled: false
+  serviceName: "simple-ai-agent"
+  # endpoint is auto-computed from jaeger subchart when jaeger.enabled=true;
+  # set this when jaeger.enabled=false and you have an existing collector.
+  endpoint: ""
+  sampleRate: "1.0"
+
+# ---------------------------------------------------------------------------
+# External observability — use when subcharts are disabled
+# ---------------------------------------------------------------------------
+external:
+  prometheus:
+    url: ""
+  grafana:
+    url: ""
+  alertmanager:
+    url: ""
+
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: ai-agent.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: ai-agent-tls
+  #   hosts:
+  #     - ai-agent.example.com
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# Autoscaling (HPA)
+# ---------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# ---------------------------------------------------------------------------
+# Pod Disruption Budget
+# ---------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# ---------------------------------------------------------------------------
+# Liveness / Readiness probes
+# ---------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# ---------------------------------------------------------------------------
+# Prometheus ServiceMonitor
+# ---------------------------------------------------------------------------
+serviceMonitor:
+  enabled: false
+  # namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  # release: kube-prometheus-stack
+
+# ---------------------------------------------------------------------------
+# Extra volumes / mounts (e.g., kubeconfig from a Secret)
+# ---------------------------------------------------------------------------
+extraVolumes: []
+# - name: kubeconfig
+#   secret:
+#     secretName: my-kubeconfig
+
+extraVolumeMounts: []
+# - name: kubeconfig
+#   mountPath: /app/.kube/config
+#   subPath: config
+#   readOnly: true
+
+# ---------------------------------------------------------------------------
+# Node selector, tolerations, affinity
+# ---------------------------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ---------------------------------------------------------------------------
+# PostgreSQL subchart (bitnami/postgresql)
+# Set enabled: false to use an external postgres via secrets.externalDatabaseUrl
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  auth:
+    username: aiagent
+    password: aiagent_password
+    database: aiagent
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# Redis subchart (bitnami/redis)
+# Set enabled: false to use external Redis via secrets.externalRedisUrl
+# ---------------------------------------------------------------------------
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# ---------------------------------------------------------------------------
+# kube-prometheus-stack subchart (aliased as prometheus-stack)
+# Set enabled: true to deploy Prometheus + Grafana + Alertmanager
+# Set enabled: false and populate external.prometheus.url / external.grafana.url
+# ---------------------------------------------------------------------------
+prometheus-stack:
+  enabled: false
+  grafana:
+    adminPassword: "changeme"
+    persistence:
+      enabled: false
+  prometheus:
+    prometheusSpec:
+      retention: 15d
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+  alertmanager:
+    alertmanagerSpec:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+
+# ---------------------------------------------------------------------------
+# Jaeger subchart (jaegertracing/jaeger)
+# Set enabled: true to deploy Jaeger all-in-one
+# Set enabled: false and populate otel.endpoint for an existing collector
+# ---------------------------------------------------------------------------
+jaeger:
+  enabled: false
+  allInOne:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  storage:
+    type: memory
+  collector:
+    service:
+      otlp:
+        grpc:
+          name: otlp-grpc
+          port: 4317
+        http:
+          name: otlp-http
+          port: 4318

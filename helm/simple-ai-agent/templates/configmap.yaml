@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "simple-ai-agent.configmapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "simple-ai-agent.labels" . | nindent 4 }}
+data:
+  # Application settings
+  LOG_LEVEL: {{ .Values.app.logLevel | quote }}
+  ENVIRONMENT: {{ .Values.app.environment | quote }}
+  DEFAULT_MODEL: {{ .Values.app.defaultModel | quote }}
+  SESSION_TTL_SECONDS: {{ .Values.app.sessionTtlSeconds | quote }}
+  RATE_LIMIT_PER_MINUTE: {{ .Values.app.rateLimitPerMinute | quote }}
+  API_HOST: {{ .Values.app.apiHost | quote }}
+  API_PORT: {{ .Values.app.apiPort | quote }}
+
+  # AIOps settings
+  K8S_WATCHLOOP_ENABLED: {{ .Values.app.aiops.k8sWatchloopEnabled | quote }}
+  K8S_WATCHLOOP_INTERVAL: {{ .Values.app.aiops.k8sWatchloopInterval | quote }}
+  AUTO_REMEDIATION_ENABLED: {{ .Values.app.aiops.autoRemediationEnabled | quote }}
+  AIOPS_NOTIFICATION_CHANNEL: {{ .Values.app.aiops.aiopsNotificationChannel | quote }}
+  APPROVAL_TIMEOUT_SECONDS: {{ .Values.app.aiops.approvalTimeoutSeconds | quote }}
+  RCA_TIMEOUT_SECONDS: {{ .Values.app.aiops.rcaTimeoutSeconds | quote }}
+  LOG_AI_TIMEOUT_SECONDS: {{ .Values.app.aiops.logAiTimeoutSeconds | quote }}
+  MCP_TOOL_TIMEOUT_SECONDS: {{ .Values.app.aiops.mcpToolTimeoutSeconds | quote }}
+  MAX_LOG_BYTES: {{ .Values.app.aiops.maxLogBytes | quote }}
+
+  # OpenTelemetry
+  OTEL_ENABLED: {{ .Values.otel.enabled | quote }}
+  OTEL_SERVICE_NAME: {{ .Values.otel.serviceName | quote }}
+  OTEL_SAMPLE_RATE: {{ .Values.otel.sampleRate | quote }}
+  OTLP_ENDPOINT: {{ include "simple-ai-agent.otlpEndpoint" . | quote }}
+
+  # Observability URLs
+  PROMETHEUS_URL: {{ include "simple-ai-agent.prometheusUrl" . | quote }}
+  GRAFANA_URL: {{ include "simple-ai-agent.grafanaUrl" . | quote }}
+
+  # Redis
+  REDIS_URL: {{ include "simple-ai-agent.redisUrl" . | quote }}

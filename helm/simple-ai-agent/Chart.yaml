@@ -1,0 +1,41 @@
+apiVersion: v2
+name: simple-ai-agent
+description: A Helm chart for Simple AI Agent — multi-channel AI bot with AIOps, OpenTelemetry, and Kubernetes integration
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - ai
+  - agent
+  - slack
+  - telegram
+  - aiops
+  - kubernetes
+  - opentelemetry
+
+maintainers:
+  - name: htunn
+    url: https://github.com/Htunn/simple-ai-agent
+
+dependencies:
+  - name: postgresql
+    version: ">=15.0.0 <16.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+
+  - name: redis
+    version: ">=19.0.0 <20.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+
+  - name: kube-prometheus-stack
+    version: ">=58.0.0 <61.0.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus-stack.enabled
+    alias: prometheus-stack
+
+  - name: jaeger
+    version: ">=3.0.0 <4.0.0"
+    repository: "https://jaegertracing.github.io/helm-charts"
+    condition: jaeger.enabled
