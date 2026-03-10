@@ -8,8 +8,8 @@ ARG VERSION=1.0.0
 
 LABEL org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.authors="Simple AI Agent Contributors" \
-    org.opencontainers.image.url="https://github.com/YOUR_USERNAME/simple-ai-agent" \
-    org.opencontainers.image.source="https://github.com/YOUR_USERNAME/simple-ai-agent" \
+    org.opencontainers.image.url="https://github.com/Htunn/simple-ai-agent" \
+    org.opencontainers.image.source="https://github.com/Htunn/simple-ai-agent" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.title="Simple AI Agent" \
