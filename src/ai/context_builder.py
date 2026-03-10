@@ -1,7 +1,6 @@
 """Context builder for AI conversations."""
 
 import uuid
-from typing import Optional
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +22,7 @@ class ContextBuilder:
         self,
         conversation_id: uuid.UUID,
         max_messages: int = 20,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
     ) -> list[dict[str, str]]:
         """
         Build conversation context for AI model.
@@ -64,7 +63,7 @@ class ContextBuilder:
         self,
         conversation_id: uuid.UUID,
         content: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> Message:
         """Add user message to conversation."""
         return await self.message_repo.create(
@@ -79,8 +78,8 @@ class ContextBuilder:
         conversation_id: uuid.UUID,
         content: str,
         model_used: str,
-        token_count: Optional[int] = None,
-        metadata: Optional[dict] = None,
+        token_count: int | None = None,
+        metadata: dict | None = None,
     ) -> Message:
         """Add assistant message to conversation."""
         return await self.message_repo.create(

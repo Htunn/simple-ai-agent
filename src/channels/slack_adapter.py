@@ -1,10 +1,10 @@
 """Slack channel adapter."""
 
-from typing import Any, Optional
+from typing import Any
 
 import structlog
-from slack_sdk.web.async_client import AsyncWebClient
 from slack_sdk.errors import SlackApiError
+from slack_sdk.web.async_client import AsyncWebClient
 
 from src.channels.base import ChannelAdapter, ChannelMessage
 from src.config import get_settings
@@ -16,11 +16,11 @@ settings = get_settings()
 class SlackAdapter(ChannelAdapter):
     """Slack bot adapter using Events API."""
 
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: str | None = None):
         super().__init__("slack")
         self.token = token or settings.slack_bot_token
-        self.client: Optional[AsyncWebClient] = None
-        self._bot_user_id: Optional[str] = None
+        self.client: AsyncWebClient | None = None
+        self._bot_user_id: str | None = None
 
     async def _initialize_client(self) -> None:
         """Initialize Slack client and get bot user ID."""
@@ -39,7 +39,7 @@ class SlackAdapter(ChannelAdapter):
             logger.error("slack_auth_failed", error=str(e))
             raise
 
-    def parse_message(self, event: Any) -> Optional[ChannelMessage]:
+    def parse_message(self, event: Any) -> ChannelMessage | None:
         """
         Parse Slack event.
 

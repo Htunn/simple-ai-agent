@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -17,7 +17,7 @@ class KubernetesHandler:
     the appropriate Kubernetes MCP operations.
     """
 
-    def __init__(self, mcp_tools: Dict[str, Any]):
+    def __init__(self, mcp_tools: dict[str, Any]):
         """
         Initialize Kubernetes handler.
 
@@ -57,7 +57,7 @@ class KubernetesHandler:
         message_lower = message.lower()
         return any(keyword in message_lower for keyword in self.k8s_keywords)
 
-    async def handle_query(self, message: str, context: Optional[str] = None) -> str:
+    async def handle_query(self, message: str, context: str | None = None) -> str:
         """
         Handle a Kubernetes query from the user.
 
@@ -162,7 +162,6 @@ class KubernetesHandler:
 
         if "mcp_kubernetes_pods_list" in self.mcp_tools:
             tool = self.mcp_tools["mcp_kubernetes_pods_list"]
-            params = {}
             if namespace:
                 result = await tool(namespace=namespace)
             else:
@@ -428,7 +427,7 @@ class KubernetesHandler:
 
     # Extraction methods
 
-    def _extract_pod_name(self, message: str) -> Optional[str]:
+    def _extract_pod_name(self, message: str) -> str | None:
         """Extract pod name from message."""
         # Look for patterns like "pod nginx-123" or "pod: nginx-123"
         patterns = [
@@ -445,7 +444,7 @@ class KubernetesHandler:
 
         return None
 
-    def _extract_deployment_name(self, message: str) -> Optional[str]:
+    def _extract_deployment_name(self, message: str) -> str | None:
         """Extract deployment name from message."""
         patterns = [
             r"deployment\s+([a-z0-9-]+)",
@@ -461,7 +460,7 @@ class KubernetesHandler:
 
         return None
 
-    def _extract_namespace(self, message: str) -> Optional[str]:
+    def _extract_namespace(self, message: str) -> str | None:
         """Extract namespace from message."""
         patterns = [
             r"namespace\s+([a-z0-9-]+)",
@@ -478,7 +477,7 @@ class KubernetesHandler:
 
         return None
 
-    def _extract_number(self, message: str, default: Optional[int] = None) -> Optional[int]:
+    def _extract_number(self, message: str, default: int | None = None) -> int | None:
         """Extract a number from message."""
         # Look for patterns like "to 3", "scale 5", "last 100"
         patterns = [
@@ -501,7 +500,7 @@ class KubernetesHandler:
 
         return default
 
-    def _extract_resource_kind(self, message: str) -> Optional[str]:
+    def _extract_resource_kind(self, message: str) -> str | None:
         """Extract Kubernetes resource kind from message."""
         message_lower = message.lower()
 

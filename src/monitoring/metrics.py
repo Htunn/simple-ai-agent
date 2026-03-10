@@ -4,8 +4,7 @@ Application-level Prometheus metrics.
 Exposes key counters / gauges for the AI agent so Prometheus can scrape `/metrics`.
 """
 
-from prometheus_client import Counter, Gauge, Histogram, Info, REGISTRY, CollectorRegistry
-from prometheus_client.core import GaugeMetricFamily
+from prometheus_client import Counter, Gauge, Histogram, Info
 
 # ── Request / message counters ────────────────────────────────────────────────
 

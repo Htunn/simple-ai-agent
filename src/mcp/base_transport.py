@@ -6,7 +6,7 @@ supporting multiple communication protocols (stdio, SSE, WebSocket, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class BaseMCPTransport(ABC):
@@ -36,8 +36,8 @@ class BaseMCPTransport(ABC):
 
     @abstractmethod
     async def send_request(
-        self, method: str, params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, method: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """
         Send a JSON-RPC request.
 
@@ -51,7 +51,7 @@ class BaseMCPTransport(ABC):
         pass
 
     @abstractmethod
-    async def initialize(self, client_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def initialize(self, client_info: dict[str, Any]) -> dict[str, Any]:
         """
         Initialize the MCP connection.
 
@@ -64,7 +64,7 @@ class BaseMCPTransport(ABC):
         pass
 
     @abstractmethod
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """
         List available tools.
 
@@ -75,8 +75,8 @@ class BaseMCPTransport(ABC):
 
     @abstractmethod
     async def call_tool(
-        self, tool_name: str, arguments: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, tool_name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Call a tool with arguments.
 

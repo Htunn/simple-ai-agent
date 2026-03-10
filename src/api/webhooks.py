@@ -6,8 +6,7 @@ import hmac
 import json
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -70,7 +69,7 @@ async def telegram_webhook(
 
     except Exception as e:
         logger.error("telegram_webhook_error", error=str(e), error_type=type(e).__name__)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/webhook/slack")
@@ -163,7 +162,7 @@ async def slack_webhook(request: Request) -> dict:
         raise
     except Exception as e:
         logger.error("slack_webhook_error", error=str(e), error_type=type(e).__name__)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/webhook/test")
@@ -230,7 +229,7 @@ async def alertmanager_webhook(
                 fired_at = (
                     datetime.fromisoformat(fired_at_str.replace("Z", "+00:00"))
                     if fired_at_str
-                    else datetime.now(timezone.utc)
+                    else datetime.now(UTC)
                 )
                 resolved_at = None
                 if resolved_at_str and status == "resolved":

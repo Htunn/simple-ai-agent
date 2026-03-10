@@ -12,16 +12,17 @@ Approval is granted/rejected via chat response matching approval ID.
 
 import json
 import uuid
+from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Callable, Coroutine
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
 import structlog
 
 from src.config import get_settings
-from src.database.postgres import get_db_session
 from src.database.models import ApprovalAuditLog
+from src.database.postgres import get_db_session
 from src.monitoring.tracing import get_tracer
 
 logger = structlog.get_logger()
@@ -29,13 +30,13 @@ settings = get_settings()
 _tracer = get_tracer(__name__)
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
 
-class ApprovalStatus(str, Enum):
+class ApprovalStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -55,7 +56,7 @@ class PendingApproval:
     requested_by: str  # user_id or "auto"
     channel_type: str
     channel_target: str  # chat_id or channel_id to reply to
-    requested_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    requested_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     playbook_run_id: str | None = None
     incident_id: str | None = None
     status: ApprovalStatus = ApprovalStatus.PENDING
@@ -79,11 +80,11 @@ class PendingApproval:
         risk_emoji = {"low": "🟡", "medium": "🟠", "high": "🔴"}[self.risk_level.value]
         lines = [
             f"{risk_emoji} **Approval Required** [{self.risk_level.value.upper()}]",
-            f"",
+            "",
             f"**Action:** {self.description}",
             f"**Tool:** `{self.tool_name}`",
             f"**Parameters:** `{json.dumps(self.tool_params, indent=2)}`",
-            f"",
+            "",
             f"Reply with **`approve {self.approval_id[:8]}`** to proceed or **`reject {self.approval_id[:8]}`** to cancel.",
             f"This request expires in {settings.approval_timeout_seconds // 60} minutes.",
         ]

@@ -1,6 +1,6 @@
 """GitHub Models API client."""
 
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from openai import AsyncOpenAI
@@ -27,7 +27,7 @@ class GitHubModelsClient:
         "llama-3-8b": "meta-llama-3-8b-instruct",
     }
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Initialize GitHub Models client."""
         self.api_key = api_key or settings.github_token
         self.client = AsyncOpenAI(

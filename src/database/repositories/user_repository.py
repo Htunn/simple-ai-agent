@@ -1,7 +1,6 @@
 """User repository for database operations."""
 
 import uuid
-from typing import Optional
 
 import structlog
 from sqlalchemy import select
@@ -18,7 +17,7 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_channel_user(self, channel_type: str, channel_user_id: str) -> Optional[User]:
+    async def get_by_channel_user(self, channel_type: str, channel_user_id: str) -> User | None:
         """Get user by channel type and channel user ID."""
         result = await self.session.execute(
             select(User).where(
@@ -28,7 +27,7 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_id(self, user_id: uuid.UUID) -> Optional[User]:
+    async def get_by_id(self, user_id: uuid.UUID) -> User | None:
         """Get user by ID."""
         result = await self.session.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
@@ -37,8 +36,8 @@ class UserRepository:
         self,
         channel_type: str,
         channel_user_id: str,
-        username: Optional[str] = None,
-        preferred_model: Optional[str] = None,
+        username: str | None = None,
+        preferred_model: str | None = None,
     ) -> User:
         """Create a new user."""
         user = User(
@@ -58,7 +57,7 @@ class UserRepository:
         return user
 
     async def get_or_create(
-        self, channel_type: str, channel_user_id: str, username: Optional[str] = None
+        self, channel_type: str, channel_user_id: str, username: str | None = None
     ) -> User:
         """Get existing user or create new one."""
         user = await self.get_by_channel_user(channel_type, channel_user_id)
@@ -66,7 +65,7 @@ class UserRepository:
             user = await self.create(channel_type, channel_user_id, username)
         return user
 
-    async def update_preferred_model(self, user_id: uuid.UUID, model: str) -> Optional[User]:
+    async def update_preferred_model(self, user_id: uuid.UUID, model: str) -> User | None:
         """Update user's preferred model."""
         user = await self.get_by_id(user_id)
         if user:

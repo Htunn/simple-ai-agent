@@ -84,8 +84,8 @@ async def health_check() -> HealthResponse:
             from src.monitoring.prometheus import PrometheusClient
 
             prom = PrometheusClient()
-            summary = await prom.get_cluster_health_summary()
-            # summary is a dict; just confirm we got something
+            await prom.get_cluster_health_summary()
+            # just confirm we got something without an exception
             prometheus_status = "healthy"
         except Exception as e:
             prometheus_status = f"unhealthy: {str(e)}"

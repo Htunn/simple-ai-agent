@@ -1,7 +1,6 @@
 """Model selection service for AI interactions."""
 
 import uuid
-from typing import Optional
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession

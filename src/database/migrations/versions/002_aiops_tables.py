@@ -5,9 +5,9 @@ Revises: 001
 Create Date: 2026-02-27
 """
 
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from alembic import op
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 # revision identifiers
 revision = "002_aiops_tables"

@@ -129,7 +129,7 @@ class RCAEngine:
                 supporting_evidence=data.get("supporting_evidence") or [],
                 incident_context=incident_context,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("rca_ai_timeout", timeout_seconds=timeout)
             return self._fallback_rca(incident_context)
         except Exception as e:
@@ -139,7 +139,7 @@ class RCAEngine:
     @staticmethod
     def _build_context_message(ctx: dict[str, Any]) -> str:
         lines = [
-            f"## Incident Context",
+            "## Incident Context",
             f"Resource: {ctx.get('resource_kind', 'Pod')}/{ctx.get('resource_name', 'unknown')}",
             f"Namespace: {ctx.get('namespace', 'default')}",
             f"Restart Count: {ctx.get('restarts', 0)}",

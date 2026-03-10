@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from sqlalchemy import desc, select
@@ -19,7 +19,7 @@ class ConversationRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_id(self, conversation_id: uuid.UUID) -> Optional[Conversation]:
+    async def get_by_id(self, conversation_id: uuid.UUID) -> Conversation | None:
         """Get conversation by ID."""
         result = await self.session.execute(
             select(Conversation).where(Conversation.id == conversation_id)
@@ -28,14 +28,14 @@ class ConversationRepository:
 
     async def get_active_by_user(
         self, user_id: uuid.UUID, channel_type: str
-    ) -> Optional[Conversation]:
+    ) -> Conversation | None:
         """Get active conversation for a user on a specific channel."""
         result = await self.session.execute(
             select(Conversation)
             .where(
                 Conversation.user_id == user_id,
                 Conversation.channel_type == channel_type,
-                Conversation.is_active == True,
+                Conversation.is_active.is_(True),
             )
             .order_by(desc(Conversation.last_activity))
             .limit(1)
@@ -46,8 +46,8 @@ class ConversationRepository:
         self,
         user_id: uuid.UUID,
         channel_type: str,
-        model_override: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        model_override: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Conversation:
         """Create a new conversation."""
         conversation = Conversation(
@@ -73,7 +73,7 @@ class ConversationRepository:
             conversation = await self.create(user_id, channel_type)
         return conversation
 
-    async def update_activity(self, conversation_id: uuid.UUID) -> Optional[Conversation]:
+    async def update_activity(self, conversation_id: uuid.UUID) -> Conversation | None:
         """Update last activity timestamp."""
         conversation = await self.get_by_id(conversation_id)
         if conversation:
@@ -81,7 +81,7 @@ class ConversationRepository:
             await self.session.flush()
         return conversation
 
-    async def deactivate(self, conversation_id: uuid.UUID) -> Optional[Conversation]:
+    async def deactivate(self, conversation_id: uuid.UUID) -> Conversation | None:
         """Deactivate a conversation."""
         conversation = await self.get_by_id(conversation_id)
         if conversation:
@@ -92,7 +92,7 @@ class ConversationRepository:
 
     async def set_model_override(
         self, conversation_id: uuid.UUID, model: str
-    ) -> Optional[Conversation]:
+    ) -> Conversation | None:
         """Set model override for a conversation."""
         conversation = await self.get_by_id(conversation_id)
         if conversation:

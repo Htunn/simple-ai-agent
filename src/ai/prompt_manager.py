@@ -1,7 +1,5 @@
 """Prompt templates and management."""
 
-from typing import Optional
-
 
 class PromptManager:
     """Manages system prompts and templates."""
@@ -15,7 +13,7 @@ class PromptManager:
 
     @classmethod
     def get_system_prompt(
-        cls, channel_type: Optional[str] = None, custom_prompt: Optional[str] = None
+        cls, channel_type: str | None = None, custom_prompt: str | None = None
     ) -> str:
         """
         Get system prompt for AI model.
@@ -36,7 +34,7 @@ class PromptManager:
         return cls.DEFAULT_SYSTEM_PROMPT
 
     @classmethod
-    def format_user_message(cls, content: str, username: Optional[str] = None) -> str:
+    def format_user_message(cls, content: str, username: str | None = None) -> str:
         """Format user message with optional username."""
         if username:
             return f"{username}: {content}"

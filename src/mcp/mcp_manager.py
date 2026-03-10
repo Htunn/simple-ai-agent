@@ -5,10 +5,9 @@ This module handles initialization, lifecycle, and routing for multiple
 MCP servers (stdio-based, SSE-based, etc.).
 """
 
-import asyncio
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -32,7 +31,7 @@ class MCPManager:
     - Future: WebSocket, gRPC, etc.
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """
         Initialize MCP manager.
 
@@ -40,9 +39,9 @@ class MCPManager:
             config_path: Path to .mcp-config.json file
         """
         self.config_path = config_path or self._get_default_config_path()
-        self.servers: Dict[str, BaseMCPTransport] = {}
-        self.server_configs: Dict[str, Dict[str, Any]] = {}
-        self.tool_registry: Dict[str, str] = {}  # tool_name -> server_name
+        self.servers: dict[str, BaseMCPTransport] = {}
+        self.server_configs: dict[str, dict[str, Any]] = {}
+        self.tool_registry: dict[str, str] = {}  # tool_name -> server_name
         logger.info("mcp_manager_initialized", config_path=self.config_path)
 
     def _get_default_config_path(self) -> str:
@@ -63,7 +62,7 @@ class MCPManager:
                 logger.warning("mcp_config_not_found", path=self.config_path)
                 return False
 
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 config = json.load(f)
 
             mcp_servers = config.get("mcpServers", {})
@@ -90,7 +89,7 @@ class MCPManager:
             return False
 
     async def _start_server(
-        self, server_name: str, server_config: Dict[str, Any], global_env: Dict[str, str]
+        self, server_name: str, server_config: dict[str, Any], global_env: dict[str, str]
     ) -> bool:
         """
         Start a single MCP server.
@@ -144,8 +143,8 @@ class MCPManager:
             return False
 
     async def _create_sse_transport(
-        self, server_name: str, server_config: Dict[str, Any]
-    ) -> Optional[BaseMCPTransport]:
+        self, server_name: str, server_config: dict[str, Any]
+    ) -> BaseMCPTransport | None:
         """Create and start an SSE transport."""
         url = server_config.get("url")
         if not url:
@@ -161,8 +160,8 @@ class MCPManager:
         return None
 
     async def _create_stdio_transport(
-        self, server_name: str, server_config: Dict[str, Any], global_env: Dict[str, str]
-    ) -> Optional[BaseMCPTransport]:
+        self, server_name: str, server_config: dict[str, Any], global_env: dict[str, str]
+    ) -> BaseMCPTransport | None:
         """Create and start a stdio transport."""
         # Import here to avoid circular dependency
         from src.services.mcp_client import MCPClient
@@ -201,8 +200,8 @@ class MCPManager:
         logger.info("mcp_manager_stopped")
 
     async def call_tool(
-        self, tool_name: str, arguments: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, tool_name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Call a tool by name, routing to the appropriate server.
 
@@ -247,7 +246,7 @@ class MCPManager:
                 "isError": True,
             }
 
-    async def list_all_tools(self) -> List[Dict[str, Any]]:
+    async def list_all_tools(self) -> list[dict[str, Any]]:
         """
         List all tools from all servers.
 
@@ -268,7 +267,7 @@ class MCPManager:
         logger.debug("listed_all_tools", count=len(all_tools), servers=len(self.servers))
         return all_tools
 
-    def get_server_info(self) -> Dict[str, Any]:
+    def get_server_info(self) -> dict[str, Any]:
         """
         Get information about all connected servers.
 

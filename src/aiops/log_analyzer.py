@@ -7,9 +7,8 @@ refused, stack traces, etc.) and optionally enriches with AI classification.
 
 import asyncio
 import re
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any
+from dataclasses import dataclass
+from enum import StrEnum
 
 import structlog
 
@@ -21,7 +20,7 @@ logger = structlog.get_logger()
 _DEFAULT_MAX_LOG_BYTES = 10 * 1024 * 1024
 
 
-class LogSeverity(str, Enum):
+class LogSeverity(StrEnum):
     CRITICAL = "CRITICAL"
     ERROR = "ERROR"
     WARNING = "WARNING"
@@ -178,7 +177,7 @@ class LogAnalyzer:
         raw_errors: list[str] = []
 
         for name, severity, regex in self._get_compiled():
-            matched_lines = [l for l in lines if regex.search(l)]
+            matched_lines = [line for line in lines if regex.search(line)]
             if matched_lines:
                 if severity in (LogSeverity.CRITICAL, LogSeverity.ERROR):
                     error_count += len(matched_lines)
@@ -247,7 +246,7 @@ class LogAnalyzer:
                 timeout=float(timeout),
             )
             result.ai_classification = ai_response.strip()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("log_ai_analysis_timeout", timeout_seconds=timeout, pod=pod_name)
         except Exception as e:
             logger.warning("log_ai_analysis_failed", error=str(e))

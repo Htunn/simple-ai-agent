@@ -1,7 +1,7 @@
 """Message repository for database operations."""
 
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from sqlalchemy import desc, select
@@ -23,9 +23,9 @@ class MessageRepository:
         conversation_id: uuid.UUID,
         role: str,
         content: str,
-        model_used: Optional[str] = None,
-        token_count: Optional[int] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        model_used: str | None = None,
+        token_count: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Message:
         """Create a new message."""
         message = Message(

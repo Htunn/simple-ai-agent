@@ -6,11 +6,9 @@ providing tools to interact with Kubernetes clusters via kubectl.
 """
 
 import asyncio
-import json
 import logging
-import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -59,7 +57,7 @@ class KubernetesMCPServer:
 
         logger.info("kubernetes_mcp_server_initialized", tools_count=len(self.tools))
 
-    def _define_tools(self) -> List[Dict[str, Any]]:
+    def _define_tools(self) -> list[dict[str, Any]]:
         """
         Define available Kubernetes tools with their schemas.
 
@@ -450,7 +448,7 @@ class KubernetesMCPServer:
         logger.info("starting_kubernetes_mcp_server")
         await self.transport.start(self._handle_request)
 
-    async def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Handle incoming JSON-RPC requests.
 
@@ -484,7 +482,7 @@ class KubernetesMCPServer:
             logger.error("request_handling_error", method=method, error=str(e))
             return self._create_error_response(request_id, -32603, "Internal error", str(e))
 
-    async def _handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_initialize(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Handle initialize request.
 
@@ -503,7 +501,7 @@ class KubernetesMCPServer:
             "serverInfo": self.server_info,
         }
 
-    async def _handle_tools_list(self) -> Dict[str, Any]:
+    async def _handle_tools_list(self) -> dict[str, Any]:
         """
         Handle tools/list request.
 
@@ -513,7 +511,7 @@ class KubernetesMCPServer:
         logger.debug("listing_tools", count=len(self.tools))
         return {"tools": self.tools}
 
-    async def _handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_tools_call(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Handle tools/call request.
 
@@ -529,7 +527,7 @@ class KubernetesMCPServer:
         logger.info("calling_tool", tool=tool_name, args=arguments)
 
         # Route to appropriate tool handler
-        handler_map: Dict[str, Any] = {
+        handler_map: dict[str, Any] = {
             "k8s_get_pods": self._kubectl_get_pods,
             "k8s_get_nodes": self._kubectl_get_nodes,
             "k8s_get_deployments": self._kubectl_get_deployments,
@@ -570,7 +568,7 @@ class KubernetesMCPServer:
 
         return {"content": [{"type": "text", "text": result}]}
 
-    async def _run_kubectl(self, args: List[str]) -> str:
+    async def _run_kubectl(self, args: list[str]) -> str:
         """
         Execute a kubectl command.
 
@@ -605,7 +603,7 @@ class KubernetesMCPServer:
 
     # Tool implementations
 
-    async def _kubectl_get_pods(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_pods(self, args: dict[str, Any]) -> str:
         """Get pods in a namespace."""
         namespace = args.get("namespace", "default")
         label_selector = args.get("label_selector")
@@ -616,25 +614,25 @@ class KubernetesMCPServer:
 
         return await self._run_kubectl(cmd_args)
 
-    async def _kubectl_get_nodes(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_nodes(self, args: dict[str, Any]) -> str:
         """Get all nodes."""
         return await self._run_kubectl(["get", "nodes"])
 
-    async def _kubectl_get_deployments(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_deployments(self, args: dict[str, Any]) -> str:
         """Get deployments in a namespace."""
         namespace = args.get("namespace", "default")
         return await self._run_kubectl(["get", "deployments", "-n", namespace])
 
-    async def _kubectl_get_services(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_services(self, args: dict[str, Any]) -> str:
         """Get services in a namespace."""
         namespace = args.get("namespace", "default")
         return await self._run_kubectl(["get", "services", "-n", namespace])
 
-    async def _kubectl_get_namespaces(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_namespaces(self, args: dict[str, Any]) -> str:
         """Get all namespaces."""
         return await self._run_kubectl(["get", "namespaces"])
 
-    async def _kubectl_get_logs(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_logs(self, args: dict[str, Any]) -> str:
         """Get logs from a pod."""
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
@@ -647,7 +645,7 @@ class KubernetesMCPServer:
 
         return await self._run_kubectl(cmd_args)
 
-    async def _kubectl_scale_deployment(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_scale_deployment(self, args: dict[str, Any]) -> str:
         """Scale a deployment."""
         deployment = args["deployment"]
         replicas = args["replicas"]
@@ -657,7 +655,7 @@ class KubernetesMCPServer:
             ["scale", "deployment", deployment, "--replicas", str(replicas), "-n", namespace]
         )
 
-    async def _kubectl_describe_resource(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_describe_resource(self, args: dict[str, Any]) -> str:
         """Describe a Kubernetes resource."""
         resource_type = args["resource_type"]
         resource_name = args["resource_name"]
@@ -669,38 +667,38 @@ class KubernetesMCPServer:
 
         return await self._run_kubectl(cmd_args)
 
-    async def _kubectl_get_events(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_events(self, args: dict[str, Any]) -> str:
         """Get events in a namespace."""
         namespace = args.get("namespace", "default")
         return await self._run_kubectl(["get", "events", "-n", namespace])
 
-    async def _kubectl_top_pods(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_top_pods(self, args: dict[str, Any]) -> str:
         """Show resource usage for pods."""
         namespace = args.get("namespace", "default")
         return await self._run_kubectl(["top", "pods", "-n", namespace])
 
-    async def _kubectl_top_nodes(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_top_nodes(self, args: dict[str, Any]) -> str:
         """Show resource usage for nodes."""
         return await self._run_kubectl(["top", "nodes"])
 
-    async def _kubectl_get_contexts(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_contexts(self, args: dict[str, Any]) -> str:
         """List kubectl contexts."""
         return await self._run_kubectl(["config", "get-contexts"])
 
-    async def _kubectl_current_context(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_current_context(self, args: dict[str, Any]) -> str:
         """Get current kubectl context."""
         return await self._run_kubectl(["config", "current-context"])
 
     # ── Self-Healing / AIOps Handlers ─────────────────────────────────────────
 
-    async def _kubectl_restart_pod(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_restart_pod(self, args: dict[str, Any]) -> str:
         """Delete a pod to trigger a fresh restart."""
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
         result = await self._run_kubectl(["delete", "pod", pod_name, "-n", namespace])
         return f"Pod {pod_name} deleted (will be recreated by controller).\n{result}"
 
-    async def _kubectl_restart_deployment(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_restart_deployment(self, args: dict[str, Any]) -> str:
         """Trigger a rolling restart of a deployment."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
@@ -708,7 +706,7 @@ class KubernetesMCPServer:
             ["rollout", "restart", f"deployment/{deployment_name}", "-n", namespace]
         )
 
-    async def _kubectl_rollback_deployment(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_rollback_deployment(self, args: dict[str, Any]) -> str:
         """Rollback a deployment to a previous revision."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
@@ -718,7 +716,7 @@ class KubernetesMCPServer:
             cmd.append(f"--to-revision={revision}")
         return await self._run_kubectl(cmd)
 
-    async def _kubectl_rollout_status(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_rollout_status(self, args: dict[str, Any]) -> str:
         """Check rollout status of a deployment."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
@@ -726,7 +724,7 @@ class KubernetesMCPServer:
             ["rollout", "status", f"deployment/{deployment_name}", "-n", namespace, "--timeout=60s"]
         )
 
-    async def _kubectl_get_rollout_history(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_rollout_history(self, args: dict[str, Any]) -> str:
         """Get rollout history for a deployment."""
         deployment_name = args["deployment_name"]
         namespace = args.get("namespace", "default")
@@ -734,17 +732,17 @@ class KubernetesMCPServer:
             ["rollout", "history", f"deployment/{deployment_name}", "-n", namespace]
         )
 
-    async def _kubectl_cordon_node(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_cordon_node(self, args: dict[str, Any]) -> str:
         """Cordon a node to prevent new pod scheduling."""
         node_name = args["node_name"]
         return await self._run_kubectl(["cordon", node_name])
 
-    async def _kubectl_uncordon_node(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_uncordon_node(self, args: dict[str, Any]) -> str:
         """Uncordon a node to allow scheduling."""
         node_name = args["node_name"]
         return await self._run_kubectl(["uncordon", node_name])
 
-    async def _kubectl_drain_node(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_drain_node(self, args: dict[str, Any]) -> str:
         """Drain all pods from a node."""
         node_name = args["node_name"]
         ignore_daemonsets = args.get("ignore_daemonsets", True)
@@ -753,7 +751,7 @@ class KubernetesMCPServer:
             cmd.append("--ignore-daemonsets")
         return await self._run_kubectl(cmd)
 
-    async def _kubectl_force_delete_pod(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_force_delete_pod(self, args: dict[str, Any]) -> str:
         """Force delete a stuck Terminating pod."""
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
@@ -761,7 +759,7 @@ class KubernetesMCPServer:
             ["delete", "pod", pod_name, "-n", namespace, "--grace-period=0", "--force"]
         )
 
-    async def _kubectl_update_image(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_update_image(self, args: dict[str, Any]) -> str:
         """Update the container image in a deployment."""
         deployment_name = args["deployment_name"]
         container_name = args["container_name"]
@@ -778,7 +776,7 @@ class KubernetesMCPServer:
             ]
         )
 
-    async def _kubectl_patch_resource(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_patch_resource(self, args: dict[str, Any]) -> str:
         """Apply a strategic merge patch to a resource."""
         resource_type = args["resource_type"]
         resource_name = args["resource_name"]
@@ -789,7 +787,7 @@ class KubernetesMCPServer:
             cmd += ["-n", namespace]
         return await self._run_kubectl(cmd)
 
-    async def _kubectl_analyze_logs(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_analyze_logs(self, args: dict[str, Any]) -> str:
         """Fetch and analyze pod logs for error patterns."""
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
@@ -812,7 +810,7 @@ class KubernetesMCPServer:
             line_count = len(logs.split("\n"))
             return f"📋 Logs for `{pod_name}` ({line_count} lines):\n\n```\n{logs[:3000]}\n```"
 
-    async def _kubectl_label_resource(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_label_resource(self, args: dict[str, Any]) -> str:
         """Add or update labels on a resource."""
         resource_type = args["resource_type"]
         resource_name = args["resource_name"]
@@ -824,7 +822,7 @@ class KubernetesMCPServer:
         cmd = ["label", resource_type, resource_name, "-n", namespace, "--overwrite"] + label_args
         return await self._run_kubectl(cmd)
 
-    async def _kubectl_exec_command(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_exec_command(self, args: dict[str, Any]) -> str:
         """Execute an allowlisted command in a pod container."""
         pod_name = args["pod_name"]
         namespace = args.get("namespace", "default")
@@ -847,7 +845,7 @@ class KubernetesMCPServer:
             return f"Error: Command '{command[0] if command else ''}' not in allowlist. Allowed: {sorted(ALLOWED)}"
         return await self._run_kubectl(["exec", pod_name, "-n", namespace, "--"] + command)
 
-    async def _kubectl_get_crashloop_pods(self, args: Dict[str, Any]) -> str:
+    async def _kubectl_get_crashloop_pods(self, args: dict[str, Any]) -> str:
         """Find all CrashLoopBackOff, Error, or OOMKilled pods."""
         namespace = args.get("namespace")
         if namespace:
@@ -866,14 +864,14 @@ class KubernetesMCPServer:
         }
         lines = result.split("\n")
         header = lines[0] if lines else ""
-        bad_lines = [l for l in lines[1:] if any(s in l for s in bad_statuses)]
+        bad_lines = [line for line in lines[1:] if any(s in line for s in bad_statuses)]
         if not bad_lines:
             return "✅ No pods in crash/error state found."
         return f"{header}\n" + "\n".join(bad_lines)
 
     def _create_error_response(
-        self, request_id: Any, code: int, message: str, data: Optional[Any] = None
-    ) -> Dict[str, Any]:
+        self, request_id: Any, code: int, message: str, data: Any | None = None
+    ) -> dict[str, Any]:
         """Create a JSON-RPC error response."""
         response = {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 

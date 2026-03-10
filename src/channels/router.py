@@ -1,7 +1,7 @@
 """Message router for channel adapters."""
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 
@@ -66,7 +66,7 @@ class MessageRouter:
 
         self.tasks.clear()
 
-    def get_adapter(self, channel_type: str) -> Optional[ChannelAdapter]:
+    def get_adapter(self, channel_type: str) -> ChannelAdapter | None:
         """Get adapter by channel type."""
         return self.adapters.get(channel_type)
 

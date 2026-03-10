@@ -5,11 +5,10 @@ This module implements MCP communication over HTTP with SSE for responses.
 Used for cloud-based MCP servers that expose HTTP endpoints.
 """
 
-import asyncio
-import json
-from typing import Any, Dict, List, Optional
-import structlog
+from typing import Any
+
 import httpx
+import structlog
 
 from src.mcp.base_transport import BaseMCPTransport
 
@@ -26,7 +25,7 @@ class SSETransport(BaseMCPTransport):
     - Maintains persistent HTTP connection for streaming
     """
 
-    def __init__(self, url: str, api_key: Optional[str] = None):
+    def __init__(self, url: str, api_key: str | None = None):
         """
         Initialize SSE transport.
 
@@ -36,10 +35,10 @@ class SSETransport(BaseMCPTransport):
         """
         self.url = url.rstrip("/")
         self.api_key = api_key
-        self.client: Optional[httpx.AsyncClient] = None
+        self.client: httpx.AsyncClient | None = None
         self._request_id = 0
         self._initialized = False
-        self._server_info: Optional[Dict[str, Any]] = None
+        self._server_info: dict[str, Any] | None = None
         logger.info("sse_transport_initialized", url=self.url)
 
     async def start(self) -> bool:
@@ -75,8 +74,8 @@ class SSETransport(BaseMCPTransport):
         logger.info("sse_transport_stopped")
 
     async def send_request(
-        self, method: str, params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, method: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """
         Send a JSON-RPC request via HTTP POST.
 
@@ -155,7 +154,7 @@ class SSETransport(BaseMCPTransport):
             )
             return None
 
-    async def initialize(self, client_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def initialize(self, client_info: dict[str, Any]) -> dict[str, Any]:
         """
         Initialize the MCP connection.
 
@@ -179,7 +178,7 @@ class SSETransport(BaseMCPTransport):
         else:
             raise Exception("Failed to initialize SSE MCP server")
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """
         List available tools from the MCP server.
 
@@ -200,8 +199,8 @@ class SSETransport(BaseMCPTransport):
         return []
 
     async def call_tool(
-        self, tool_name: str, arguments: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, tool_name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Call a tool on the MCP server.
 

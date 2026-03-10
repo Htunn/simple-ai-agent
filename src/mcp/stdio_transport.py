@@ -6,7 +6,8 @@ This module handles JSON-RPC 2.0 communication over stdin/stdout.
 
 import json
 import sys
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 
@@ -29,7 +30,7 @@ class StdioTransport:
         self.running = False
         logger.info("stdio_transport_initialized")
 
-    async def start(self, request_handler: Callable[[Dict[str, Any]], Any]):
+    async def start(self, request_handler: Callable[[dict[str, Any]], Any]):
         """
         Start listening for requests on stdin.
 
@@ -86,7 +87,7 @@ class StdioTransport:
             self.running = False
             logger.info("stdio_transport_stopped")
 
-    def _write_response(self, response: Dict[str, Any]):
+    def _write_response(self, response: dict[str, Any]):
         """
         Write a JSON-RPC response to stdout.
 
@@ -101,8 +102,8 @@ class StdioTransport:
             logger.error("failed_to_write_response", error=str(e))
 
     def _create_error_response(
-        self, request_id: Optional[Any], code: int, message: str, data: Optional[Any] = None
-    ) -> Dict[str, Any]:
+        self, request_id: Any | None, code: int, message: str, data: Any | None = None
+    ) -> dict[str, Any]:
         """
         Create a JSON-RPC error response.
 

@@ -1,7 +1,7 @@
 """Base channel adapter interface."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 
@@ -15,9 +15,9 @@ class ChannelMessage:
         self,
         content: str,
         user_id: str,
-        username: Optional[str] = None,
+        username: str | None = None,
         channel_type: str = "",
-        raw_event: Optional[Any] = None,
+        raw_event: Any | None = None,
     ):
         self.content = content
         self.user_id = user_id
@@ -66,7 +66,7 @@ class ChannelAdapter(ABC):
         pass
 
     @abstractmethod
-    def parse_message(self, event: Any) -> Optional[ChannelMessage]:
+    def parse_message(self, event: Any) -> ChannelMessage | None:
         """
         Parse incoming message event.
 

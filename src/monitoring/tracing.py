@@ -45,7 +45,7 @@ _tracer_provider: TracerProvider | None = None
 # ---------------------------------------------------------------------------
 
 
-def setup_tracing(settings: "Settings") -> None:
+def setup_tracing(settings: Settings) -> None:
     """Configure and start the OpenTelemetry :class:`TracerProvider`.
 
     Must be called once at application startup.  Subsequent calls are

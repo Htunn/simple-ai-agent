@@ -7,7 +7,7 @@ When a rule matches, the associated playbook is queued for execution (with appro
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import structlog
@@ -15,7 +15,7 @@ import structlog
 logger = structlog.get_logger()
 
 
-class RuleCondition(str, Enum):
+class RuleCondition(StrEnum):
     CRASH_LOOP = "crash_loop"
     OOM_KILLED = "oom_killed"
     NOT_READY_NODE = "not_ready_node"

@@ -1,9 +1,7 @@
 """Session management service with Redis caching."""
 
-import json
 import uuid
 from dataclasses import asdict, dataclass
-from typing import Optional
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +39,7 @@ class SessionManager:
         return f"session:{channel_type}:{channel_user_id}"
 
     async def get_or_create_session(
-        self, channel_type: str, channel_user_id: str, username: Optional[str] = None
+        self, channel_type: str, channel_user_id: str, username: str | None = None
     ) -> SessionData:
         """Get existing session from cache or database, or create new one."""
         cache_key = self._session_key(channel_type, channel_user_id)

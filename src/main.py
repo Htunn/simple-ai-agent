@@ -4,15 +4,15 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from alembic import command as alembic_command
-from alembic.config import Config as AlembicConfig
-
+import src.monitoring.metrics as _metrics  # noqa: F401 — registers Prometheus metrics on import
 from src.ai import GitHubModelsClient
 from src.api import health_router, limiter, set_message_router, webhook_router
 from src.api.middleware import ContentSizeLimitMiddleware, CorrelationIdMiddleware
@@ -20,10 +20,9 @@ from src.channels import create_router
 from src.config import get_settings
 from src.database import close_db, close_redis, init_db, init_redis
 from src.mcp.mcp_manager import MCPManager
+from src.monitoring.tracing import instrument_fastapi, setup_tracing, shutdown_tracing
 from src.services import MessageHandler
 from src.utils import configure_logging
-import src.monitoring.metrics as _metrics  # noqa: F401 — registers Prometheus metrics on import
-from src.monitoring.tracing import instrument_fastapi, setup_tracing, shutdown_tracing
 
 logger = structlog.get_logger()
 settings = get_settings()

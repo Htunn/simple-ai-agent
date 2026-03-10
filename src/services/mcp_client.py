@@ -3,7 +3,7 @@
 import asyncio
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -22,9 +22,7 @@ class MCPClient(BaseMCPTransport):
     in a standardized way using JSON-RPC 2.0 over stdin/stdout.
     """
 
-    def __init__(
-        self, server_command: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None
-    ):
+    def __init__(self, server_command: list[str] | None = None, env: dict[str, str] | None = None):
         """
         Initialize MCP client.
 
@@ -34,13 +32,13 @@ class MCPClient(BaseMCPTransport):
         """
         self.server_command = server_command or self._get_default_server_command()
         self.env = env or {}
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.process: asyncio.subprocess.Process | None = None
         self._request_id = 0
-        self._available_tools: Optional[List[Dict[str, Any]]] = None
+        self._available_tools: list[dict[str, Any]] | None = None
         self._initialized = False
         logger.info("mcp_client_initialized", command=self.server_command)
 
-    def _get_default_server_command(self) -> List[str]:
+    def _get_default_server_command(self) -> list[str]:
         """Get the default MCP server command."""
         # Get the project root directory
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -108,8 +106,8 @@ class MCPClient(BaseMCPTransport):
             raise Exception("Failed to initialize MCP server")
 
     async def _send_request(
-        self, method: str, params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, method: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """
         Send a JSON-RPC request to the MCP server.
 
@@ -153,7 +151,7 @@ class MCPClient(BaseMCPTransport):
             logger.error("mcp_request_failed", method=method, error=str(e))
             return None
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """
         List available tools from the MCP server.
 
@@ -191,8 +189,8 @@ class MCPClient(BaseMCPTransport):
             return []
 
     async def call_tool(
-        self, tool_name: str, arguments: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, tool_name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Call a tool on the MCP server.
 
@@ -252,7 +250,7 @@ class MCPClient(BaseMCPTransport):
                 "isError": True,
             }
 
-    async def get_resources(self) -> List[Dict[str, Any]]:
+    async def get_resources(self) -> list[dict[str, Any]]:
         """
         Get available resources from the MCP server.
 
@@ -283,7 +281,7 @@ class MCPClient(BaseMCPTransport):
             )
             return []
 
-    async def read_resource(self, resource_uri: str) -> Optional[str]:
+    async def read_resource(self, resource_uri: str) -> str | None:
         """
         Read a resource from the MCP server.
 
@@ -355,8 +353,8 @@ class MCPClient(BaseMCPTransport):
         await self.close()
 
     async def send_request(
-        self, method: str, params: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, method: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """
         Send a JSON-RPC request (public interface).
 
@@ -369,7 +367,7 @@ class MCPClient(BaseMCPTransport):
         """
         return await self._send_request(method, params)
 
-    async def initialize(self, client_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def initialize(self, client_info: dict[str, Any]) -> dict[str, Any]:
         """
         Initialize the MCP connection.
 
@@ -405,7 +403,7 @@ class MCPClient(BaseMCPTransport):
                 # Wait for process to terminate (with timeout)
                 try:
                     await asyncio.wait_for(self.process.wait(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("mcp_server_timeout_killing")
                     self.process.kill()
                     await self.process.wait()
@@ -428,7 +426,7 @@ class MCPToolExecutor:
     def __init__(self, mcp_client: MCPClient):
         self.mcp_client = mcp_client
 
-    async def execute_from_text(self, text: str) -> Optional[str]:
+    async def execute_from_text(self, text: str) -> str | None:
         """
         Parse AI response for tool calls and execute them.
 

@@ -7,7 +7,7 @@ in-cluster config (production) and kubeconfig file (local/dev).
 
 import asyncio
 import os
-from functools import lru_cache
+from datetime import UTC
 from typing import Any
 
 import structlog
@@ -161,10 +161,11 @@ class KubernetesClient:
         if not proxy_url.startswith("socks"):
             return
         try:
-            from aiohttp_socks import ProxyConnector
             import ssl as _ssl
+
             import aiohttp as _aio
             import kubernetes_asyncio.client.rest as _rest
+            from aiohttp_socks import ProxyConnector
 
             _proxy = proxy_url
 
@@ -282,7 +283,7 @@ class KubernetesClient:
 
     async def scale_deployment(self, name: str, replicas: int, namespace: str = "default") -> bool:
         """Scale a deployment to the given replica count."""
-        from kubernetes_asyncio.client import V1Scale, V1ScaleSpec, V1ObjectMeta
+        from kubernetes_asyncio.client import V1ObjectMeta, V1Scale, V1ScaleSpec
 
         scale = V1Scale(
             metadata=V1ObjectMeta(name=name, namespace=namespace),
@@ -311,16 +312,14 @@ class KubernetesClient:
 
     async def restart_deployment(self, name: str, namespace: str = "default") -> bool:
         """Trigger a rolling restart by patching the annotation."""
-        from datetime import timezone, datetime
+        from datetime import datetime
 
         patch = {
             "spec": {
                 "template": {
                     "metadata": {
                         "annotations": {
-                            "kubectl.kubernetes.io/restartedAt": datetime.now(
-                                timezone.utc
-                            ).isoformat()
+                            "kubectl.kubernetes.io/restartedAt": datetime.now(UTC).isoformat()
                         }
                     }
                 }

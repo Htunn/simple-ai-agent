@@ -8,9 +8,10 @@ through the ApprovalManager before execution.
 
 import asyncio
 import uuid
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Coroutine
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
@@ -24,7 +25,7 @@ logger = structlog.get_logger()
 _tracer = get_tracer(__name__)
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     LOW = "low"  # Execute immediately, notify after
     MEDIUM = "medium"  # Require human approval
     HIGH = "high"  # Require human approval + explicit confirmation
@@ -500,7 +501,7 @@ class PlaybookExecutor:
                     return f"❌ {step.name}: output did not match success pattern"
             logger.info("playbook_step_completed", run_id=run.run_id, step=step.name)
             return f"✅ {step.name}: {output}"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "playbook_step_timeout", run_id=run.run_id, step=step.name, timeout_seconds=timeout
             )

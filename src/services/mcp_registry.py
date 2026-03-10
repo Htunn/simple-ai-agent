@@ -1,6 +1,6 @@
 """MCP Tools Registry - Manages native and HTTP-based MCP tools."""
 
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
 
 import structlog
 
@@ -15,7 +15,7 @@ class MCPToolsRegistry:
     """
 
     def __init__(self):
-        self.tools: Dict[str, Callable] = {}
+        self.tools: dict[str, Callable] = {}
         self._registered_prefixes = []
 
     def register_tool(self, name: str, tool_func: Callable):
@@ -50,7 +50,7 @@ class MCPToolsRegistry:
             except Exception as e:
                 logger.warning("failed_to_load_k8s_tools", pattern=pattern, error=str(e))
 
-    def get_tool(self, name: str) -> Optional[Callable]:
+    def get_tool(self, name: str) -> Callable | None:
         """Get a tool by name."""
         return self.tools.get(name)
 
@@ -62,7 +62,7 @@ class MCPToolsRegistry:
         """List all registered tool names."""
         return list(self.tools.keys())
 
-    def get_kubernetes_tools(self) -> Dict[str, Callable]:
+    def get_kubernetes_tools(self) -> dict[str, Callable]:
         """Get all Kubernetes-related tools."""
         return {
             name: func for name, func in self.tools.items() if name.startswith("mcp_kubernetes_")

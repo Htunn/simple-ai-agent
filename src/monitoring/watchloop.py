@@ -6,9 +6,10 @@ and publishes events to alerts queue for downstream processing.
 """
 
 import asyncio
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Coroutine
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -32,7 +33,7 @@ class ClusterEvent:
     resource_name: str
     message: str
     labels: dict[str, Any] = field(default_factory=dict)
-    detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -84,7 +85,7 @@ class K8sWatchLoop:
         self._known_issues: dict[str, datetime] = (
             {}
         )  # resource_key -> first_seen, to avoid duplicate alerts
-        self._k8s: "KubernetesClient | None" = None
+        self._k8s: KubernetesClient | None = None
         self._consecutive_failures: int = 0  # all-check failure counter for backoff
 
     async def start(self) -> None:
@@ -150,7 +151,7 @@ class K8sWatchLoop:
         Entries older than 24 hours are removed; legitimate ongoing issues will be
         re-detected and re-added on the next tick.
         """
-        cutoff = datetime.now(timezone.utc).timestamp() - 86400  # 24 h
+        cutoff = datetime.now(UTC).timestamp() - 86400  # 24 h
         stale = [k for k, v in self._known_issues.items() if v.timestamp() < cutoff]
         for k in stale:
             self._known_issues.pop(k, None)
@@ -175,7 +176,7 @@ class K8sWatchLoop:
             for pod in crash_pods:
                 key = f"pod/{pod['namespace']}/{pod['name']}"
                 if key not in self._known_issues:
-                    self._known_issues[key] = datetime.now(timezone.utc)
+                    self._known_issues[key] = datetime.now(UTC)
                     status = pod.get("status", "CrashLoopBackOff")
                     # Error (terminated non-zero) and OOMKilled are also critical
                     severity = (
@@ -215,7 +216,7 @@ class K8sWatchLoop:
             for node in not_ready:
                 key = f"node/{node['name']}"
                 if key not in self._known_issues:
-                    self._known_issues[key] = datetime.now(timezone.utc)
+                    self._known_issues[key] = datetime.now(UTC)
                     events.append(
                         ClusterEvent(
                             event_type="not_ready_node",
@@ -246,7 +247,7 @@ class K8sWatchLoop:
                     if dep.get("replicas", 0) > 0 and dep.get("available_replicas", 0) == 0:
                         current_failed_deployments.add(key)
                         if key not in self._known_issues:
-                            self._known_issues[key] = datetime.now(timezone.utc)
+                            self._known_issues[key] = datetime.now(UTC)
                             events.append(
                                 ClusterEvent(
                                     event_type="replication_failure",

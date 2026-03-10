@@ -1,6 +1,6 @@
 """Channel config repository for database operations."""
 
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -17,7 +17,7 @@ class ChannelConfigRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_channel_type(self, channel_type: str) -> Optional[ChannelConfig]:
+    async def get_by_channel_type(self, channel_type: str) -> ChannelConfig | None:
         """Get channel config by channel type."""
         result = await self.session.execute(
             select(ChannelConfig).where(ChannelConfig.channel_type == channel_type)
@@ -28,7 +28,7 @@ class ChannelConfigRepository:
         self,
         channel_type: str,
         default_model: str,
-        settings: Optional[dict[str, Any]] = None,
+        settings: dict[str, Any] | None = None,
     ) -> ChannelConfig:
         """Create a new channel config."""
         config = ChannelConfig(
@@ -52,7 +52,7 @@ class ChannelConfigRepository:
             config = await self.create(channel_type, default_model)
         return config
 
-    async def update_default_model(self, channel_type: str, model: str) -> Optional[ChannelConfig]:
+    async def update_default_model(self, channel_type: str, model: str) -> ChannelConfig | None:
         """Update default model for a channel."""
         config = await self.get_by_channel_type(channel_type)
         if config:

@@ -2,9 +2,8 @@
 
 import asyncio
 import re
-import subprocess
 import uuid
-from typing import Optional
+from datetime import UTC
 
 import structlog
 
@@ -112,7 +111,7 @@ class MessageHandler:
         self,
         router: MessageRouter,
         ai_client: GitHubModelsClient,
-        mcp_manager: Optional[MCPManager] = None,
+        mcp_manager: MCPManager | None = None,
     ):
         self.router = router
         self.ai_client = ai_client
@@ -222,7 +221,7 @@ class MessageHandler:
                         current, desired = ready.split("/")
                         if current != desired:
                             status_emoji = "⚠️"
-                    except:
+                    except Exception:
                         pass
 
                     formatted.append(
@@ -315,7 +314,7 @@ class MessageHandler:
 
         return "\n\n".join(tool_descriptions)
 
-    async def _execute_tool_from_text(self, text: str) -> Optional[str]:
+    async def _execute_tool_from_text(self, text: str) -> str | None:
         """
         Parse AI response for tool calls and execute them.
 
@@ -771,7 +770,7 @@ class MessageHandler:
                                 _filt = "\n".join([header] + problem_lines)
                                 formatted_output = self._format_kubectl_table(_filt, "pods")
                                 _fix_hint = (
-                                    f"\n\n💡 _Type **`fix pods`** or **`!k8s fix`**"
+                                    "\n\n💡 _Type **`fix pods`** or **`!k8s fix`**"
                                     + (f" (or `!k8s fix {namespace}`)" if namespace else "")
                                     + " to auto-remediate Error/CrashLoop/OOMKilled pods._"
                                 )
@@ -969,7 +968,7 @@ class MessageHandler:
                     lines = output.split("\n")
                     header = lines[0] if lines else ""
                     problem_lines = [header] + [
-                        l for l in lines[1:] if any(s in l for s in bad_statuses)
+                        line for line in lines[1:] if any(s in line for s in bad_statuses)
                     ]
                     if len(problem_lines) > 1:
                         response = (
@@ -1073,10 +1072,6 @@ class MessageHandler:
                 # 7. Full security scan: "full security scan on example.com", "security assessment for site.com"
                 full_scan_pattern = r"(?:full|complete|comprehensive)?\s*security\s+(?:scan|assessment|check)\s+(?:for|on)?\s+([a-zA-Z0-9\.\-]+)"
                 full_scan_match = re.search(full_scan_pattern, query_lower)
-
-                # 8. Extract just a hostname for general security info
-                host_pattern = r"(?:for|on|of|at)\s+([a-zA-Z0-9\.\-]+)"
-                host_match = re.search(host_pattern, query_lower)
 
                 # Route to appropriate tool
                 if port_match:
@@ -1527,7 +1522,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                     return f"📊 **{resource.capitalize()} Resource Usage{namespace_info}:**\n\n```\n{output}\n```"
                 else:
                     if "metrics-server" in output.lower():
-                        return f"❌ Metrics Server not available. Install it with:\n```\nkubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml\n```"
+                        return "❌ Metrics Server not available. Install it with:\n```\nkubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml\n```"
                     return f"❌ Error getting resource usage: {output}"
 
             elif subcommand == "config":
@@ -1557,7 +1552,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
     # Pod remediation helper
     # ──────────────────────────────────────────────────────────────────────
 
-    async def _fix_problem_pods(self, namespace: Optional[str] = None) -> str:
+    async def _fix_problem_pods(self, namespace: str | None = None) -> str:
         """
         Auto-remediate problem pods across a namespace (or all namespaces).
 
@@ -1753,6 +1748,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
 
         try:
             from sqlalchemy import text as sql_text
+
             from src.database.postgres import engine
 
             async with engine.connect() as conn:
@@ -1805,14 +1801,14 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
 
                 elif sub == "close" and len(args) >= 2:
                     short_id = args[1]
-                    from datetime import datetime, timezone
+                    from datetime import datetime
 
                     result = await conn.execute(
                         sql_text(
                             "UPDATE incidents SET status='resolved', resolved_at=:ts "
                             "WHERE id::text LIKE :pattern AND status='open'"
                         ),
-                        {"pattern": f"{short_id}%", "ts": datetime.now(timezone.utc)},
+                        {"pattern": f"{short_id}%", "ts": datetime.now(UTC)},
                     )
                     await conn.commit()
                     if result.rowcount:
@@ -1837,6 +1833,7 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
 
         try:
             from sqlalchemy import text as sql_text
+
             from src.database.postgres import engine
 
             async with engine.connect() as conn:

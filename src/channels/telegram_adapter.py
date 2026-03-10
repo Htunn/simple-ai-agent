@@ -1,10 +1,10 @@
 """Telegram channel adapter."""
 
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, MessageHandler, filters
 
 from src.channels.base import ChannelAdapter, ChannelMessage
 from src.config import get_settings
@@ -16,10 +16,10 @@ settings = get_settings()
 class TelegramAdapter(ChannelAdapter):
     """Telegram bot adapter."""
 
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: str | None = None):
         super().__init__("telegram")
         self.token = token or settings.telegram_token
-        self.application: Optional[Application] = None
+        self.application: Application | None = None
 
     async def _initialize_application(self) -> None:
         """Initialize Telegram application."""
@@ -54,7 +54,7 @@ class TelegramAdapter(ChannelAdapter):
         if update.message:
             await update.message.reply_text(PromptManager.get_command_help())
 
-    def parse_message(self, event: Any) -> Optional[ChannelMessage]:
+    def parse_message(self, event: Any) -> ChannelMessage | None:
         """Parse Telegram update."""
         if not isinstance(event, Update) or not event.message:
             return None
