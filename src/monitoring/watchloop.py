@@ -168,7 +168,8 @@ class K8sWatchLoop:
                 if key not in self._known_issues:
                     self._known_issues[key] = datetime.now(timezone.utc)
                     status = pod.get("status", "CrashLoopBackOff")
-                    severity = "critical" if "CrashLoop" in status or "OOM" in status else "warning"
+                    # Error (terminated non-zero) and OOMKilled are also critical
+                    severity = "critical" if "CrashLoop" in status or "OOM" in status or status in ("Error", "Failed") else "warning"
                     events.append(ClusterEvent(
                         event_type="crash_loop" if "OOM" not in status else "oom_killed",
                         severity=severity,

@@ -408,8 +408,25 @@ class KubernetesClient:
         results = []
         for pod in resp.items:
             for cs in (pod.status.container_statuses or []):
+                # Waiting state: CrashLoopBackOff, waiting-Error, OOMKilled-before-restart
                 if cs.state and cs.state.waiting and cs.state.waiting.reason in (
                     "CrashLoopBackOff", "Error", "OOMKilled"
+                ):
+                    results.append(self._pod_to_dict(pod))
+                    break
+                # Terminated state: Job pods / one-shot containers that exited non-zero
+                # (these show as STATUS=Error in kubectl but cs.state.waiting is None)
+                if cs.state and cs.state.terminated and cs.state.terminated.exit_code != 0:
+                    results.append(self._pod_to_dict(pod))
+                    break
+                # OOMKilled captured in last_state (between CrashLoop retries)
+                if (
+                    cs.last_state
+                    and cs.last_state.terminated
+                    and cs.last_state.terminated.reason == "OOMKilled"
+                    and cs.state
+                    and cs.state.waiting
+                    and cs.state.waiting.reason == "CrashLoopBackOff"
                 ):
                     results.append(self._pod_to_dict(pod))
                     break
@@ -465,6 +482,15 @@ class KubernetesClient:
         for cs in container_statuses:
             if cs.state and cs.state.waiting:
                 waiting_reason = cs.state.waiting.reason
+                break
+            # Expose terminated state so watchloop sees "OOMKilled" / "Error"
+            # instead of the generic pod phase ("Failed")
+            if cs.state and cs.state.terminated:
+                t = cs.state.terminated
+                if t.reason == "OOMKilled":
+                    waiting_reason = "OOMKilled"
+                elif t.exit_code and t.exit_code != 0:
+                    waiting_reason = t.reason or "Error"
                 break
 
         return {
