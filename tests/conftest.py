@@ -1,5 +1,11 @@
 """Test configuration and fixtures."""
 
+# test_production_readiness.py is a standalone integration script that requires
+# a running Docker stack (docker compose up -d). It must NOT be collected as
+# regular pytest tests — its async functions accept a live httpx.AsyncClient,
+# not a pytest fixture.
+collect_ignore = ["test_production_readiness.py"]
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine

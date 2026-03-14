@@ -136,12 +136,15 @@ def test_watchloop_queue():
 def test_prometheus_metrics():
     from prometheus_client import REGISTRY
     names = {m.name for m in REGISTRY.collect()}
+    # prometheus_client strips the '_total' suffix from Counter family names
+    # in REGISTRY.collect() — check base names for Counters, full names for
+    # Histograms/Gauges.
     required = [
         "aiagent_aiops_watchloop_check_duration_seconds",
         "aiagent_aiops_rca_analysis_duration_seconds",
-        "aiagent_aiops_rca_fallback_total",
+        "aiagent_aiops_rca_fallback",           # Counter: _total stripped by prometheus_client
         "aiagent_aiops_playbook_step_duration_seconds",
-        "aiagent_aiops_approval_total",
+        "aiagent_aiops_approval",               # Counter: _total stripped by prometheus_client
     ]
     import src.monitoring.metrics  # noqa: ensure registered
     names = {m.name for m in REGISTRY.collect()}
