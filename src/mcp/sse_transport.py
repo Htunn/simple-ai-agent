@@ -5,7 +5,7 @@ This module implements MCP communication over HTTP with SSE for responses.
 Used for cloud-based MCP servers that expose HTTP endpoints.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import structlog
@@ -65,7 +65,7 @@ class SSETransport(BaseMCPTransport):
             logger.error("sse_transport_start_failed", error=str(e))
             return False
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the SSE transport."""
         if self.client:
             await self.client.aclose()
@@ -141,7 +141,7 @@ class SSETransport(BaseMCPTransport):
 
             logger.debug("received_sse_response", method=method, has_result="result" in result)
 
-            return result
+            return cast(dict[str, Any], result)
 
         except httpx.HTTPStatusError as e:
             logger.error(
@@ -174,7 +174,7 @@ class SSETransport(BaseMCPTransport):
             self._server_info = response["result"]
             server_info = self._server_info.get("serverInfo") if self._server_info else None
             logger.info("sse_server_initialized", server_info=server_info)
-            return self._server_info if self._server_info else {}
+            return cast(dict[str, Any], self._server_info) if self._server_info else {}
         else:
             raise Exception("Failed to initialize SSE MCP server")
 
@@ -193,7 +193,7 @@ class SSETransport(BaseMCPTransport):
         if response and "result" in response and "tools" in response["result"]:
             tools = response["result"]["tools"]
             logger.info("sse_tools_listed", count=len(tools))
-            return tools
+            return cast(list[dict[str, Any]], tools)
 
         logger.warning("sse_no_tools_found")
         return []
@@ -220,7 +220,7 @@ class SSETransport(BaseMCPTransport):
 
         if response and "result" in response:
             logger.debug("sse_tool_called", tool=tool_name, success=True)
-            return response["result"]
+            return cast(dict[str, Any], response["result"])
         elif response and "error" in response:
             error = response["error"]
             logger.error("sse_tool_failed", tool=tool_name, error=error.get("message"))

@@ -15,7 +15,7 @@ logger = structlog.get_logger()
 class MessageRouter:
     """Routes messages between channels and message handler."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.adapters: dict[str, ChannelAdapter] = {}
         self.message_handler = None
         self.tasks: list[asyncio.Task] = []

@@ -160,5 +160,5 @@ class SlackAdapter(ChannelAdapter):
         logger.info("stopping_slack_adapter")
         if self.client:
             # Close client connection
-            await self.client.close()
+            await self.client.close()  # type: ignore[attr-defined]
         logger.info("slack_adapter_stopped")

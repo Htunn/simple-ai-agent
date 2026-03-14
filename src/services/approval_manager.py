@@ -112,7 +112,7 @@ class ApprovalManager:
     REDIS_KEY_PREFIX = "approval:"
     REDIS_INDEX_PREFIX = "approval_idx:"  # short_id → full approval_id index
 
-    def __init__(self, redis_client=None, mcp_manager=None) -> None:
+    def __init__(self, redis_client: Any = None, mcp_manager: Any = None) -> None:
         self._redis = redis_client
         self._mcp = mcp_manager
 

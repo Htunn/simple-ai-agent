@@ -1024,13 +1024,13 @@ class MessageHandler:
             query=message.content,
         )
 
+        response: str | None = None
         if not self.mcp_manager:
             response = "❌ Security tools are not available. MCP manager not initialized."
             await self.router.send_message(message.channel_type, message.user_id, response)
             return
 
         query_lower = message.content.lower()
-        response = None
 
         try:
             # Get available tools from simplePortChecker
@@ -1784,19 +1784,19 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
                         ),
                         {"pattern": f"{short_id}%"},
                     )
-                    inc = row.fetchone()
-                    if not inc:
+                    incident_row = row.fetchone()
+                    if not incident_row:
                         return f"❌ No incident found matching `{short_id}`."
-                    confidence_str = f" ({inc.rca_confidence:.0%})" if inc.rca_confidence else ""
+                    confidence_str = f" ({incident_row.rca_confidence:.0%})" if incident_row.rca_confidence else ""
                     return (
-                        f"📋 **Incident `{str(inc.id)[:8]}`**\n\n"
-                        f"**Title:** {inc.title}\n"
-                        f"**Severity:** {inc.severity} | **Status:** {inc.status}\n"
-                        f"**Type:** {inc.event_type}\n"
-                        f"**Resource:** {inc.resource_kind}/{inc.resource_name} in `{inc.namespace or 'n/a'}`\n"
-                        f"**Root Cause:** {inc.root_cause or 'Not yet determined'}{confidence_str}\n"
-                        f"**Opened:** {inc.created_at}\n"
-                        f"**Resolved:** {inc.resolved_at or 'Still open'}"
+                        f"📋 **Incident `{str(incident_row.id)[:8]}`**\n\n"
+                        f"**Title:** {incident_row.title}\n"
+                        f"**Severity:** {incident_row.severity} | **Status:** {incident_row.status}\n"
+                        f"**Type:** {incident_row.event_type}\n"
+                        f"**Resource:** {incident_row.resource_kind}/{incident_row.resource_name} in `{incident_row.namespace or 'n/a'}`\n"
+                        f"**Root Cause:** {incident_row.root_cause or 'Not yet determined'}{confidence_str}\n"
+                        f"**Opened:** {incident_row.created_at}\n"
+                        f"**Resolved:** {incident_row.resolved_at or 'Still open'}"
                     )
 
                 elif sub == "close" and len(args) >= 2:

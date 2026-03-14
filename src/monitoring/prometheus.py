@@ -6,7 +6,7 @@ cluster health: restart rates, OOMKills, error rates, CPU throttling.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import structlog
@@ -45,7 +45,7 @@ class PrometheusClient:
             )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("data", {}).get("result", [])
+            return cast(list[dict[str, Any]], data.get("data", {}).get("result", []))
 
     async def query_range(
         self, promql: str, start: str, end: str, step: str = "1m"
@@ -60,7 +60,7 @@ class PrometheusClient:
             )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("data", {}).get("result", [])
+            return cast(list[dict[str, Any]], data.get("data", {}).get("result", []))
 
     # ── Convenience queries ───────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 """GitHub Models API client."""
 
-from typing import Any
+from collections.abc import AsyncGenerator
+from typing import Any, cast
 
 import structlog
 from openai import AsyncOpenAI
@@ -78,7 +79,7 @@ class GitHubModelsClient:
         try:
             response = await self.client.chat.completions.create(
                 model=model_name,
-                messages=messages,
+                messages=cast(list[Any], messages),
                 temperature=temperature,
                 max_tokens=max_tokens,
                 **kwargs,
@@ -112,7 +113,7 @@ class GitHubModelsClient:
         temperature: float = 0.7,
         max_tokens: int = 2000,
         **kwargs: Any,
-    ):
+    ) -> AsyncGenerator[str, None]:
         """
         Stream AI response from messages.
 
@@ -133,14 +134,14 @@ class GitHubModelsClient:
         try:
             stream = await self.client.chat.completions.create(
                 model=model_name,
-                messages=messages,
+                messages=cast(list[Any], messages),
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
                 **kwargs,
             )
 
-            async for chunk in stream:
+            async for chunk in cast(Any, stream):
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 

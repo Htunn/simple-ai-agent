@@ -61,7 +61,7 @@ async def telegram_webhook(
         # Process the update
         from telegram import Update
 
-        update = Update.de_json(body, telegram_adapter.application.bot)
+        update = Update.de_json(body, telegram_adapter.application.bot)  # type: ignore[attr-defined]
         if update:
             await telegram_adapter.handle_incoming_message(update)
 

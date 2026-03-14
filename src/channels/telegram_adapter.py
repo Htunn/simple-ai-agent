@@ -134,7 +134,8 @@ class TelegramAdapter(ChannelAdapter):
             if self.application:
                 await self.application.initialize()
                 await self.application.start()
-                await self.application.updater.start_polling()
+                if self.application.updater:
+                    await self.application.updater.start_polling()
                 logger.info("telegram_bot_started")
         except Exception as e:
             logger.error("telegram_start_failed", error=str(e))
@@ -144,6 +145,7 @@ class TelegramAdapter(ChannelAdapter):
         """Stop Telegram bot."""
         logger.info("stopping_telegram_bot")
         if self.application:
-            await self.application.updater.stop()
+            if self.application.updater:
+                await self.application.updater.stop()
             await self.application.stop()
             await self.application.shutdown()

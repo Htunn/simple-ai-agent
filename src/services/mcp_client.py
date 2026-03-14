@@ -3,7 +3,7 @@
 import asyncio
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -86,7 +86,7 @@ class MCPClient(BaseMCPTransport):
             logger.error("failed_to_start_mcp_server", error=str(e))
             return False
 
-    async def _initialize_server(self):
+    async def _initialize_server(self) -> None:
         """Send initialize request to the MCP server."""
         init_response = await self._send_request(
             "initialize",
@@ -145,7 +145,7 @@ class MCPClient(BaseMCPTransport):
             response = json.loads(response_line.decode())
             logger.debug("received_response", method=method, id=response.get("id"))
 
-            return response
+            return cast(dict[str, Any], response)
 
         except Exception as e:
             logger.error("mcp_request_failed", method=method, error=str(e))
@@ -172,7 +172,7 @@ class MCPClient(BaseMCPTransport):
                 self._available_tools = response["result"].get("tools", [])
                 if self._available_tools:
                     logger.info("mcp_tools_listed", count=len(self._available_tools))
-                    return self._available_tools
+                    return cast(list[dict[str, Any]], self._available_tools)
                 else:
                     logger.warning("mcp_tools_list_empty")
                     return []
@@ -217,7 +217,7 @@ class MCPClient(BaseMCPTransport):
 
             if response and "result" in response:
                 logger.info("mcp_tool_called_successfully", tool=tool_name)
-                return response["result"]
+                return cast(dict[str, Any], response["result"])
             elif response and "error" in response:
                 error = response["error"]
                 logger.error(
@@ -269,7 +269,7 @@ class MCPClient(BaseMCPTransport):
             if response and "result" in response:
                 resources = response["result"].get("resources", [])
                 logger.info("mcp_resources_listed", count=len(resources))
-                return resources
+                return cast(list[dict[str, Any]], resources)
             else:
                 return []
 
@@ -301,7 +301,7 @@ class MCPClient(BaseMCPTransport):
             if response and "result" in response:
                 content = response["result"].get("contents", [])
                 if content:
-                    return content[0].get("text", "")
+                    return cast(str, content[0].get("text", ""))
                 return None
             else:
                 return None
@@ -348,7 +348,7 @@ class MCPClient(BaseMCPTransport):
 
     # BaseMCPTransport interface implementation
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the MCP server (alias for close)."""
         await self.close()
 

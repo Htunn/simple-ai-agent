@@ -234,7 +234,7 @@ class K8sWatchLoop:
 
         # 3. Scan for deployments with 0 available replicas (desired > 0)
         try:
-            namespaces_resp = await self._k8s._core_v1.list_namespace()  # type: ignore[union-attr]
+            namespaces_resp = await self._k8s._core_v1.list_namespace()  # type: ignore[attr-defined]
             current_failed_deployments: set[str] = set()
 
             for ns in namespaces_resp.items:

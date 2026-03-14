@@ -14,16 +14,16 @@ class MCPToolsRegistry:
     This class manages both native VS Code MCP tools and HTTP-based MCP tools.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.tools: dict[str, Callable] = {}
-        self._registered_prefixes = []
+        self._registered_prefixes: list[str] = []
 
-    def register_tool(self, name: str, tool_func: Callable):
+    def register_tool(self, name: str, tool_func: Callable) -> None:
         """Register a single MCP tool."""
         self.tools[name] = tool_func
         logger.debug("mcp_tool_registered", name=name)
 
-    def register_kubernetes_tools(self, tool_search_func: Callable):
+    def register_kubernetes_tools(self, tool_search_func: Callable) -> None:
         """
         Register Kubernetes MCP tools dynamically.
 

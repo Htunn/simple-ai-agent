@@ -143,7 +143,7 @@ class KubernetesClient:
     def _read_proxy_url(kubeconfig_path: str, context_name: str | None) -> str | None:
         """Extract proxy-url for the active context's cluster from a kubeconfig file."""
         try:
-            import yaml
+            import yaml  # type: ignore[import-untyped]
 
             with open(kubeconfig_path) as f:
                 kc = yaml.safe_load(f)
@@ -151,7 +151,7 @@ class KubernetesClient:
             ctx_objs = {c["name"]: c.get("context", {}) for c in (kc.get("contexts") or [])}
             cluster_name = ctx_objs.get(ctx_name, {}).get("cluster", "")
             cluster_objs = {c["name"]: c.get("cluster", {}) for c in (kc.get("clusters") or [])}
-            return cluster_objs.get(cluster_name, {}).get("proxy-url")
+            return cluster_objs.get(cluster_name, {}).get("proxy-url")  # type: ignore[no-any-return]
         except Exception:
             return None
 
@@ -169,7 +169,7 @@ class KubernetesClient:
 
             _proxy = proxy_url
 
-            def _patched_init(self, configuration, pools_size=4, maxsize=None):
+            def _patched_init(self: Any, configuration: Any, pools_size: int = 4, maxsize: int | None = None) -> None:
                 if maxsize is None:
                     maxsize = configuration.connection_pool_maxsize
                 ssl_ctx = _ssl.create_default_context(cafile=configuration.ssl_ca_cert)
@@ -204,7 +204,7 @@ class KubernetesClient:
 
     async def list_namespaces(self) -> list[dict[str, Any]]:
         """List all namespaces in the cluster."""
-        resp = await self._core_v1.list_namespace()
+        resp = await self._core_v1.list_namespace()  # type: ignore[attr-defined]
         return [
             {
                 "name": ns.metadata.name,
@@ -220,7 +220,7 @@ class KubernetesClient:
         self, namespace: str = "default", label_selector: str | None = None
     ) -> list[dict[str, Any]]:
         """List pods in a namespace with their status."""
-        resp = await self._core_v1.list_namespaced_pod(
+        resp = await self._core_v1.list_namespaced_pod(  # type: ignore[attr-defined]
             namespace=namespace,
             label_selector=label_selector or "",
         )
@@ -229,7 +229,7 @@ class KubernetesClient:
     async def get_pod(self, name: str, namespace: str = "default") -> dict[str, Any] | None:
         """Get a single pod by name."""
         try:
-            pod = await self._core_v1.read_namespaced_pod(name=name, namespace=namespace)
+            pod = await self._core_v1.read_namespaced_pod(name=name, namespace=namespace)  # type: ignore[attr-defined]
             return self._pod_to_dict(pod)
         except Exception:
             return None
@@ -240,7 +240,7 @@ class KubernetesClient:
         """Delete a pod (triggers restart if managed by a controller)."""
         from kubernetes_asyncio.client import V1DeleteOptions
 
-        await self._core_v1.delete_namespaced_pod(
+        await self._core_v1.delete_namespaced_pod(  # type: ignore[attr-defined]
             name=name,
             namespace=namespace,
             body=V1DeleteOptions(grace_period_seconds=grace_period),
@@ -256,7 +256,7 @@ class KubernetesClient:
     ) -> str:
         """Fetch pod logs."""
         return (
-            await self._core_v1.read_namespaced_pod_log(
+            await self._core_v1.read_namespaced_pod_log(  # type: ignore[attr-defined]
                 name=name,
                 namespace=namespace,
                 container=container,
@@ -270,13 +270,13 @@ class KubernetesClient:
 
     async def list_deployments(self, namespace: str = "default") -> list[dict[str, Any]]:
         """List deployments in a namespace."""
-        resp = await self._apps_v1.list_namespaced_deployment(namespace=namespace)
+        resp = await self._apps_v1.list_namespaced_deployment(namespace=namespace)  # type: ignore[attr-defined]
         return [self._deployment_to_dict(d) for d in resp.items]
 
     async def get_deployment(self, name: str, namespace: str = "default") -> dict[str, Any] | None:
         """Get a single deployment."""
         try:
-            d = await self._apps_v1.read_namespaced_deployment(name=name, namespace=namespace)
+            d = await self._apps_v1.read_namespaced_deployment(name=name, namespace=namespace)  # type: ignore[attr-defined]
             return self._deployment_to_dict(d)
         except Exception:
             return None
@@ -289,14 +289,14 @@ class KubernetesClient:
             metadata=V1ObjectMeta(name=name, namespace=namespace),
             spec=V1ScaleSpec(replicas=replicas),
         )
-        await self._apps_v1.replace_namespaced_deployment_scale(
+        await self._apps_v1.replace_namespaced_deployment_scale(  # type: ignore[attr-defined]
             name=name, namespace=namespace, body=scale
         )
         return True
 
     async def patch_deployment(self, name: str, namespace: str, patch: dict[str, Any]) -> bool:
         """Apply a JSON merge patch to a deployment."""
-        await self._apps_v1.patch_namespaced_deployment(name=name, namespace=namespace, body=patch)
+        await self._apps_v1.patch_namespaced_deployment(name=name, namespace=namespace, body=patch)  # type: ignore[attr-defined]
         return True
 
     async def update_deployment_image(
@@ -379,19 +379,19 @@ class KubernetesClient:
 
     async def list_nodes(self) -> list[dict[str, Any]]:
         """List cluster nodes."""
-        resp = await self._core_v1.list_node()
+        resp = await self._core_v1.list_node()  # type: ignore[attr-defined]
         return [self._node_to_dict(n) for n in resp.items]
 
     async def cordon_node(self, name: str) -> bool:
         """Cordon a node to prevent new pod scheduling."""
         patch = {"spec": {"unschedulable": True}}
-        await self._core_v1.patch_node(name=name, body=patch)
+        await self._core_v1.patch_node(name=name, body=patch)  # type: ignore[attr-defined]
         return True
 
     async def uncordon_node(self, name: str) -> bool:
         """Uncordon a node to allow pod scheduling."""
         patch = {"spec": {"unschedulable": False}}
-        await self._core_v1.patch_node(name=name, body=patch)
+        await self._core_v1.patch_node(name=name, body=patch)  # type: ignore[attr-defined]
         return True
 
     async def drain_node(
@@ -432,7 +432,7 @@ class KubernetesClient:
         self, namespace: str = "default", field_selector: str | None = None
     ) -> list[dict[str, Any]]:
         """List events in a namespace."""
-        resp = await self._core_v1.list_namespaced_event(
+        resp = await self._core_v1.list_namespaced_event(  # type: ignore[attr-defined]
             namespace=namespace,
             field_selector=field_selector or "",
         )
@@ -444,9 +444,9 @@ class KubernetesClient:
     async def get_crashloop_pods(self, namespace: str | None = None) -> list[dict[str, Any]]:
         """Find all CrashLoopBackOff pods across namespaces."""
         if namespace:
-            resp = await self._core_v1.list_namespaced_pod(namespace=namespace)
+            resp = await self._core_v1.list_namespaced_pod(namespace=namespace)  # type: ignore[attr-defined]
         else:
-            resp = await self._core_v1.list_pod_for_all_namespaces()
+            resp = await self._core_v1.list_pod_for_all_namespaces()  # type: ignore[attr-defined]
 
         results = []
         for pod in resp.items:
@@ -534,7 +534,7 @@ class KubernetesClient:
     # ── Serializers ───────────────────────────────────────────────────────────
 
     @staticmethod
-    def _pod_to_dict(pod) -> dict[str, Any]:
+    def _pod_to_dict(pod: Any) -> dict[str, Any]:
         containers = pod.spec.containers or []
         container_statuses = pod.status.container_statuses or []
         ready_count = sum(1 for cs in container_statuses if cs.ready)
@@ -570,7 +570,7 @@ class KubernetesClient:
         }
 
     @staticmethod
-    def _deployment_to_dict(d) -> dict[str, Any]:
+    def _deployment_to_dict(d: Any) -> dict[str, Any]:
         spec = d.spec or {}
         status = d.status or {}
         return {
@@ -583,7 +583,7 @@ class KubernetesClient:
         }
 
     @staticmethod
-    def _node_to_dict(node) -> dict[str, Any]:
+    def _node_to_dict(node: Any) -> dict[str, Any]:
         conditions = node.status.conditions or []
         ready_cond = next((c for c in conditions if c.type == "Ready"), None)
         status = "Ready" if (ready_cond and ready_cond.status == "True") else "NotReady"
@@ -595,7 +595,7 @@ class KubernetesClient:
         }
 
     @staticmethod
-    def _event_to_dict(e) -> dict[str, Any]:
+    def _event_to_dict(e: Any) -> dict[str, Any]:
         return {
             "namespace": e.metadata.namespace,
             "name": e.metadata.name,

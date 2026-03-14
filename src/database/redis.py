@@ -49,15 +49,15 @@ class RedisCache:
 
     async def get(self, key: str) -> str | None:
         """Get value from cache."""
-        return await self.client.get(key)
+        return await self.client.get(key)  # type: ignore[no-any-return]
 
     async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
         """Set value in cache with optional TTL."""
-        return await self.client.set(key, value, ex=ttl)
+        return await self.client.set(key, value, ex=ttl)  # type: ignore[no-any-return]
 
     async def delete(self, key: str) -> int:
         """Delete key from cache."""
-        return await self.client.delete(key)
+        return await self.client.delete(key)  # type: ignore[no-any-return]
 
     async def exists(self, key: str) -> bool:
         """Check if key exists."""
@@ -65,24 +65,24 @@ class RedisCache:
 
     async def incr(self, key: str) -> int:
         """Increment counter."""
-        return await self.client.incr(key)
+        return await self.client.incr(key)  # type: ignore[no-any-return]
 
     async def expire(self, key: str, ttl: int) -> bool:
         """Set expiration on key."""
-        return await self.client.expire(key, ttl)
+        return await self.client.expire(key, ttl)  # type: ignore[no-any-return]
 
     async def hget(self, name: str, key: str) -> str | None:
         """Get hash field value."""
-        return await self.client.hget(name, key)
+        return await self.client.hget(name, key)  # type: ignore[misc, no-any-return]
 
     async def hset(self, name: str, key: str, value: str) -> int:
         """Set hash field value."""
-        return await self.client.hset(name, key, value)
+        return await self.client.hset(name, key, value)  # type: ignore[misc, no-any-return]
 
     async def hgetall(self, name: str) -> dict[str, Any]:
         """Get all hash fields."""
-        return await self.client.hgetall(name)
+        return await self.client.hgetall(name)  # type: ignore[misc, no-any-return]
 
     async def hdel(self, name: str, *keys: str) -> int:
         """Delete hash fields."""
-        return await self.client.hdel(name, *keys)
+        return await self.client.hdel(name, *keys)  # type: ignore[misc, no-any-return, arg-type]

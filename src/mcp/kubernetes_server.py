@@ -45,10 +45,10 @@ class KubernetesMCPServer:
     - tools/call: Execute a tool
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Kubernetes MCP server."""
         self.server_info = {"name": "kubernetes-mcp-server", "version": "1.0.0"}
-        self.capabilities = {"tools": {}}
+        self.capabilities: dict[str, Any] = {"tools": {}}
         self.transport = StdioTransport()
         self.initialized = False
 
@@ -443,7 +443,7 @@ class KubernetesMCPServer:
             },
         ]
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the MCP server on stdio."""
         logger.info("starting_kubernetes_mcp_server")
         await self.transport.start(self._handle_request)
@@ -881,7 +881,7 @@ class KubernetesMCPServer:
         return response
 
 
-async def main():
+async def main() -> None:
     """Main entry point for the MCP server."""
     server = KubernetesMCPServer()
     await server.start()

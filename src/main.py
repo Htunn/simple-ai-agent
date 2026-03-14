@@ -1,7 +1,9 @@
 """Main application entry point."""
 
 import asyncio
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from alembic import command as alembic_command
@@ -28,16 +30,16 @@ logger = structlog.get_logger()
 settings = get_settings()
 
 # Global instances
-router = None
-handler = None
-mcp_manager = None
-watchloop = None
-approval_manager = None
-playbook_executor = None
+router: Any = None
+handler: Any = None
+mcp_manager: Any = None
+watchloop: Any = None
+approval_manager: Any = None
+playbook_executor: Any = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global router, handler, mcp_manager, watchloop, approval_manager, playbook_executor
 
@@ -144,7 +146,7 @@ async def lifespan(app: FastAPI):
                 notify_callback=router.send_message if router else None,
             )
 
-            async def _on_cluster_event(event) -> None:
+            async def _on_cluster_event(event: Any) -> None:
                 """Route watch-loop events → rule engine → approval / auto-remediation."""
                 try:
                     matches = rule_engine.evaluate(event.to_dict())
@@ -273,31 +275,31 @@ app.add_middleware(CorrelationIdMiddleware)
 
 # Add rate limiting
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Include routers
 app.include_router(health_router, tags=["Health"])
 app.include_router(webhook_router, prefix="/api", tags=["Webhooks"])
 
 
-def get_watchloop():
+def get_watchloop() -> Any:
     """Return current watchloop instance (for health checks)."""
     return watchloop
 
 
-def get_approval_manager():
+def get_approval_manager() -> Any:
     """Return current approval manager instance."""
     return approval_manager
 
 
 @app.get("/metrics", include_in_schema=False)
-async def metrics():
+async def metrics() -> PlainTextResponse:
     """Prometheus metrics endpoint."""
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     """Root endpoint."""
     return {
         "name": "Simple AI Agent",

@@ -5,7 +5,7 @@ import uuid
 import structlog
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -26,7 +26,7 @@ limiter = Limiter(
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """Attach a correlation/request-ID to every request for distributed tracing."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         structlog.contextvars.bind_contextvars(request_id=request_id)
         try:
@@ -40,7 +40,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
     """Reject request bodies larger than 1 MiB with HTTP 413."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > _MAX_BODY_BYTES:
             logger.warning(

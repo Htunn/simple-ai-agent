@@ -74,7 +74,7 @@ class RCAEngine:
         report = await rca.analyze(incident_context)
     """
 
-    def __init__(self, ai_client=None) -> None:
+    def __init__(self, ai_client: Any = None) -> None:
         self._ai_client = ai_client
 
     async def analyze(self, incident_context: dict[str, Any]) -> RCAReport:

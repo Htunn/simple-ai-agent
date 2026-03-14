@@ -184,7 +184,7 @@ class MCPManager:
 
         return None
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop all MCP servers."""
         logger.info("stopping_mcp_servers", count=len(self.servers))
 
@@ -274,7 +274,7 @@ class MCPManager:
         Returns:
             Dictionary with server status and capabilities
         """
-        info = {
+        info: dict[str, Any] = {
             "servers": {},
             "total_tools": len(self.tool_registry),
             "connected_servers": len(self.servers),

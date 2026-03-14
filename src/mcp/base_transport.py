@@ -30,7 +30,7 @@ class BaseMCPTransport(ABC):
         pass
 
     @abstractmethod
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the transport connection."""
         pass
 

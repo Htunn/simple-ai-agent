@@ -9,6 +9,7 @@ import asyncio
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 import structlog
 
@@ -154,7 +155,7 @@ class LogAnalyzer:
         pod_name: str,
         namespace: str,
         logs: str,
-        ai_client=None,
+        ai_client: Any = None,
     ) -> LogAnalysisResult:
         """Analyze log text synchronously (regex only)."""
         settings = get_settings()
@@ -219,7 +220,7 @@ class LogAnalyzer:
         pod_name: str,
         namespace: str,
         logs: str,
-        ai_client,
+        ai_client: Any,
     ) -> LogAnalysisResult:
         """Analyze logs with regex first, then enrich with AI classification."""
         result = self.analyze(pod_name, namespace, logs)

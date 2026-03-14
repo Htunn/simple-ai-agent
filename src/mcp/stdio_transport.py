@@ -24,13 +24,13 @@ class StdioTransport:
     - Logs to stderr for debugging
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize stdio transport."""
         # Configure logger to write to stderr only
         self.running = False
         logger.info("stdio_transport_initialized")
 
-    async def start(self, request_handler: Callable[[dict[str, Any]], Any]):
+    async def start(self, request_handler: Callable[[dict[str, Any]], Any]) -> None:
         """
         Start listening for requests on stdin.
 
@@ -87,7 +87,7 @@ class StdioTransport:
             self.running = False
             logger.info("stdio_transport_stopped")
 
-    def _write_response(self, response: dict[str, Any]):
+    def _write_response(self, response: dict[str, Any]) -> None:
         """
         Write a JSON-RPC response to stdout.
 
@@ -116,13 +116,13 @@ class StdioTransport:
         Returns:
             JSON-RPC error response
         """
-        response = {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+        response: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
         if data is not None:
             response["error"]["data"] = data
 
         return response
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the transport."""
         self.running = False
