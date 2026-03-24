@@ -416,6 +416,22 @@ class MessageHandler:
                 await self._handle_command(message)
                 return
 
+            # Check for a contextual K8s follow-up FIRST — before keyword detection.
+            # Phrases like "show details" / "pls show details of pods" contain K8s keywords
+            # ("pod") but are really follow-ups to the previous query; we must resolve the
+            # cached namespace and pass an explicit query so the right filter is applied.
+            k8s_followup_content = await self._get_k8s_followup_query(message)
+            if k8s_followup_content:
+                followup_msg = ChannelMessage(
+                    content=k8s_followup_content,
+                    user_id=message.user_id,
+                    username=message.username,
+                    channel_type=message.channel_type,
+                    raw_event=message.raw_event,
+                )
+                await self._handle_kubernetes_query(followup_msg)
+                return
+
             # Check if it's a Kubernetes-related query
             if self._is_kubernetes_query(message.content):
                 await self._handle_kubernetes_query(message)
@@ -641,6 +657,9 @@ class MessageHandler:
                     elif any(word in query_lower for word in ["running", "healthy", "ready"]):
                         status_filter = "running"
                         filter_description = " running"
+                    elif any(word in query_lower for word in ["all", "detail", "details", "everything", "full"]):
+                        status_filter = "all"
+                        filter_description = ""
 
                     # List pods
                     kubectl_args = ["get", "pods", "-o", "wide"]
@@ -720,6 +739,8 @@ class MessageHandler:
                                                 break
                                         if is_healthy:
                                             filtered_lines.append(line)
+                                elif status_filter == "all":
+                                    filtered_lines.append(line)
 
                             if len(filtered_lines) > 1:
                                 output = "\n".join(filtered_lines)
@@ -1014,6 +1035,83 @@ class MessageHandler:
 
         # Send response
         await self.router.send_message(message.channel_type, message.user_id, response)
+
+        # Persist exchange so follow-up messages have conversation context
+        await self._persist_exchange(message, response, model_used="kubectl")
+        # Cache the resolved namespace so follow-up queries (e.g. "show details") can reuse it
+        await self._store_k8s_context(message.channel_type, message.user_id, namespace)
+
+    async def _persist_exchange(
+        self, message: ChannelMessage, response: str, model_used: str = "system"
+    ) -> None:
+        """Persist a user/assistant exchange to the conversation history DB."""
+        try:
+            async with get_db_session() as db_session:
+                redis_cache = RedisCache(get_redis())
+                session_mgr = SessionManager(redis_cache, db_session)
+                context_builder = ContextBuilder(db_session)
+                session_data = await session_mgr.get_or_create_session(
+                    message.channel_type, message.user_id, message.username
+                )
+                conversation_id = uuid.UUID(session_data.conversation_id)
+                await context_builder.add_user_message(conversation_id, message.content)
+                await context_builder.add_assistant_message(
+                    conversation_id, response, model_used=model_used, token_count=None
+                )
+                await session_mgr.update_session_activity(message.channel_type, message.user_id)
+                await session_mgr.increment_message_count(message.channel_type, message.user_id)
+        except Exception as e:
+            logger.warning("persist_exchange_failed", error=str(e))
+
+    async def _store_k8s_context(
+        self, channel_type: str, user_id: str, namespace: str | None
+    ) -> None:
+        """Cache the last K8s namespace in Redis so follow-up queries can reuse it."""
+        try:
+            redis_cache = RedisCache(get_redis())
+            context_key = f"k8s-ctx:{channel_type}:{user_id}"
+            await redis_cache.set(context_key, namespace or "", ttl=1800)  # 30-minute TTL
+        except Exception as e:
+            logger.warning("store_k8s_context_failed", error=str(e))
+
+    async def _get_k8s_followup_query(self, message: ChannelMessage) -> str | None:
+        """Return an augmented K8s query if the message is a follow-up to a prior K8s response.
+
+        Detects short phrases like "show details", "can you pls show details of pods",
+        "list all", "show more", etc. and resolves them against the last cached K8s namespace.
+        Returns None if the message is not a recognised follow-up.
+        """
+        FOLLOWUP_PATTERNS = [
+            r"\b(show|list|get|see|display)\b.{0,30}\b(detail|details|pods?|them|all|more|everything)\b",
+            r"^(detail|details|more info|show more|show all|list all|all of them|list them)\s*$",
+            r"\b(can you|could you|please|pls)\b.{0,40}\b(show|list|get)\b.{0,30}\b(detail|pods?|more|all|them|everything)\b",
+        ]
+        msg_lower = message.content.lower().strip()
+        if not any(re.search(p, msg_lower) for p in FOLLOWUP_PATTERNS):
+            return None
+        # If the message already contains an explicit namespace reference, it is a self-contained
+        # query — not a follow-up. Let it be handled by normal K8s routing so it uses the
+        # namespace the user typed, not a cached one.
+        NAMESPACE_INDICATORS = [
+            r"(?:in|from|on)\s+(?:the\s+)?[a-z0-9][a-z0-9\-]+\s+namespace",
+            r"\bnamespace\s+[a-z0-9][a-z0-9\-]+",
+            r"-n\s+[a-z0-9][a-z0-9\-]+",
+        ]
+        if any(re.search(pat, msg_lower) for pat in NAMESPACE_INDICATORS):
+            return None
+        try:
+            redis_cache = RedisCache(get_redis())
+            context_key = f"k8s-ctx:{message.channel_type}:{message.user_id}"
+            namespace = await redis_cache.get(context_key)
+            if namespace is None:
+                # No prior K8s context — let the AI handle it
+                return None
+            if namespace:
+                # Include "details" so the pod-listing branch uses status_filter="all"
+                return f"show all pods details in {namespace} namespace"
+            return "show all pods details"
+        except Exception:
+            return None
 
     async def _handle_security_query(self, message: ChannelMessage) -> None:
         """Handle security scanning queries using simplePortChecker MCP server."""
