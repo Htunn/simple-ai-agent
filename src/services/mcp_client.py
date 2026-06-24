@@ -93,7 +93,7 @@ class MCPClient(BaseMCPTransport):
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "simple-ai-agent", "version": "1.0.0"},
+                "clientInfo": {"name": "aiops-orchestrator", "version": "1.0.0"},
             },
         )
 

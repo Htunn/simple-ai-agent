@@ -1,22 +1,22 @@
-# Prometheus alert rules for Simple AI Agent AIOps
+# Prometheus alert rules for AIOps Orchestrator AIOps
 groups:
   # ── Application Health ──────────────────────────────────────────
   - name: application_health
     interval: 30s
     rules:
       - alert: AppDown
-        expr: up{job="simple-ai-agent"} == 0
+        expr: up{job="aiops-orchestrator"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Simple AI Agent is down"
+          summary: "AIOps Orchestrator is down"
           description: "The application has been unreachable for more than 1 minute."
 
       - alert: HighErrorRate
         expr: |
-          rate(http_requests_total{job="simple-ai-agent", status=~"5.."}[5m])
-          / rate(http_requests_total{job="simple-ai-agent"}[5m]) > 0.05
+          rate(http_requests_total{job="aiops-orchestrator", status=~"5.."}[5m])
+          / rate(http_requests_total{job="aiops-orchestrator"}[5m]) > 0.05
         for: 5m
         labels:
           severity: warning
@@ -27,7 +27,7 @@ groups:
       - alert: HighLatency
         expr: |
           histogram_quantile(0.99,
-            rate(http_request_duration_seconds_bucket{job="simple-ai-agent"}[5m])
+            rate(http_request_duration_seconds_bucket{job="aiops-orchestrator"}[5m])
           ) > 2
         for: 5m
         labels:

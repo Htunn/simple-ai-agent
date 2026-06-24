@@ -1,10 +1,10 @@
 """
-Production Readiness Test Suite — Simple AI Agent
+Production Readiness Test Suite — AIOps Orchestrator
 =================================================
 Tests all major features including AIOps against the running Docker stack.
 
 Usage:
-    cd /Users/htunn/code/AI/simple-ai-agent
+    cd /Users/htunn/code/AI/aiops-orchestrator
     python tests/test_production_readiness.py
 
 Prerequisites: docker compose up -d  (all services healthy)
@@ -36,10 +36,10 @@ TIMEOUT = 15  # seconds
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 def _docker_env(var: str) -> str:
-    """Read an env var from the running simple-ai-agent container."""
+    """Read an env var from the running aiops-orchestrator container."""
     try:
         out = subprocess.check_output(
-            ["docker", "exec", "simple-ai-agent", "printenv", var],
+            ["docker", "exec", "aiops-orchestrator", "printenv", var],
             stderr=subprocess.DEVNULL,
         )
         return out.decode().strip()
@@ -405,7 +405,7 @@ async def test_aiops(client: httpx.AsyncClient) -> None:
     # Rule engine (import + evaluate in container)
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.aiops.rule_engine import RuleEngine
 re = RuleEngine()
 # Use the canonical event_type value matching RuleCondition.CRASH_LOOP ('crash_loop')
@@ -434,7 +434,7 @@ print(f"matches={len(matches)}")
     # Playbook registry loads YAML playbooks
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.aiops.playbooks import PlaybookRegistry
 reg = PlaybookRegistry()
 print(f"playbooks={len(reg.list_playbooks())}")
@@ -451,7 +451,7 @@ print(f"playbooks={len(reg.list_playbooks())}")
     # RCA engine initialises
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.aiops.rca_engine import RCAEngine
 engine = RCAEngine()
 print("rca_engine=ok")
@@ -467,7 +467,7 @@ print("rca_engine=ok")
     # Log analyzer
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.aiops.log_analyzer import LogAnalyzer
 la = LogAnalyzer()
 result = la.analyze("frontend-1234", "default", "ERROR: OOMKilled in pod frontend-1234")
@@ -484,7 +484,7 @@ print(f"log_analyzer=ok errors={result.error_count} patterns={len(result.detecte
     # Approval manager (Redis-backed)
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 import asyncio
 from src.services.approval_manager import ApprovalManager
 async def test():
@@ -515,7 +515,7 @@ async def test_mcp(client: httpx.AsyncClient) -> None:
 
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 import asyncio
 from src.mcp.mcp_manager import MCPManager
 async def test():
@@ -540,7 +540,7 @@ async def test_ai_client(client: httpx.AsyncClient) -> None:
 
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.ai.github_models import GitHubModelsClient
 client = GitHubModelsClient()
 models = client.list_supported_models()
@@ -557,7 +557,7 @@ print(f"ai_client_ok models={len(models)} first={models[0]}")
 
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.ai.model_selector import ModelSelector
 import inspect
 # ModelSelector requires a db_session — validate via class introspection
@@ -577,7 +577,7 @@ print(f"model_selector_ok methods={methods}")
 
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.ai.prompt_manager import PromptManager
 p = PromptManager.get_system_prompt('telegram')
 assert 'Telegram' in p
@@ -600,7 +600,7 @@ async def test_channels(client: httpx.AsyncClient) -> None:
     for adapter in ("telegram", "slack"):
         try:
             result = subprocess.run(
-                ["docker", "exec", "simple-ai-agent", "python", "-c", f"""
+                ["docker", "exec", "aiops-orchestrator", "python", "-c", f"""
 from src.channels import create_router
 r = create_router()
 a = r.get_adapter("{adapter}")
@@ -617,7 +617,7 @@ print(f"adapter_{adapter}=" + (type(a).__name__ if a else "None"))
     # Ensure no Discord adapter remains
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "python", "-c", """
+            ["docker", "exec", "aiops-orchestrator", "python", "-c", """
 from src.channels import create_router
 r = create_router()
 a = r.get_adapter("discord")
@@ -638,7 +638,7 @@ async def test_security(client: httpx.AsyncClient) -> None:
     # Container non-root user
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "id"],
+            ["docker", "exec", "aiops-orchestrator", "id"],
             capture_output=True, text=True, timeout=10,
         )
         uid_ok = "uid=1000" in result.stdout
@@ -676,7 +676,7 @@ async def test_security(client: httpx.AsyncClient) -> None:
     # Security: Telegram webhook rejects requests without secret (when TELEGRAM_WEBHOOK_SECRET is set)
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "printenv", "TELEGRAM_WEBHOOK_SECRET"],
+            ["docker", "exec", "aiops-orchestrator", "printenv", "TELEGRAM_WEBHOOK_SECRET"],
             capture_output=True, text=True, timeout=5,
         )
         tg_secret = result.stdout.strip()
@@ -697,7 +697,7 @@ async def test_security(client: httpx.AsyncClient) -> None:
     # Security: Alertmanager webhook rejects bad HMAC secret (when configured)
     try:
         result = subprocess.run(
-            ["docker", "exec", "simple-ai-agent", "printenv", "ALERTMANAGER_WEBHOOK_SECRET"],
+            ["docker", "exec", "aiops-orchestrator", "printenv", "ALERTMANAGER_WEBHOOK_SECRET"],
             capture_output=True, text=True, timeout=5,
         )
         am_secret = result.stdout.strip()
@@ -720,7 +720,7 @@ async def test_security(client: httpx.AsyncClient) -> None:
         result = subprocess.run(
             ["docker", "inspect", "--format",
              "{{range .NetworkSettings.Ports}}{{.}}{{end}}",
-             "simple-ai-agent-redis"],
+             "aiops-orchestrator-redis"],
             capture_output=True, text=True, timeout=10,
         )
         bindings = result.stdout
@@ -735,7 +735,7 @@ async def test_security(client: httpx.AsyncClient) -> None:
         result = subprocess.run(
             ["docker", "inspect", "--format",
              "{{range .NetworkSettings.Ports}}{{.}}{{end}}",
-             "simple-ai-agent-postgres"],
+             "aiops-orchestrator-postgres"],
             capture_output=True, text=True, timeout=10,
         )
         bindings = result.stdout
@@ -752,7 +752,7 @@ async def test_observability(client: httpx.AsyncClient) -> None:
     # Structured logging check in container logs
     try:
         result = subprocess.run(
-            ["docker", "logs", "--tail", "100", "simple-ai-agent"],
+            ["docker", "logs", "--tail", "100", "aiops-orchestrator"],
             capture_output=True, text=True, timeout=10,
         )
         logs = result.stdout + result.stderr
@@ -800,7 +800,7 @@ async def test_observability(client: httpx.AsyncClient) -> None:
 
 async def main() -> int:
     print("\n" + "═" * 60)
-    print("  Simple AI Agent — Production Readiness Test Suite")
+    print("  AIOps Orchestrator — Production Readiness Test Suite")
     print(f"  Target: {BASE_URL}")
     print(f"  Time:   {datetime.now(timezone.utc).isoformat()} UTC")
     print("═" * 60)

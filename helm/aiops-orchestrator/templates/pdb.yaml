@@ -2,14 +2,14 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "simple-ai-agent.fullname" . }}
+  name: {{ include "aiops-orchestrator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simple-ai-agent.labels" . | nindent 4 }}
+    {{- include "aiops-orchestrator.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "simple-ai-agent.selectorLabels" . | nindent 6 }}
+      {{- include "aiops-orchestrator.selectorLabels" . | nindent 6 }}
   {{- if .Values.podDisruptionBudget.minAvailable }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
   {{- end }}

@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "simple-ai-agent.fullname" . }}
+  name: {{ include "aiops-orchestrator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simple-ai-agent.labels" . | nindent 4 }}
+    {{- include "aiops-orchestrator.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "simple-ai-agent.selectorLabels" . | nindent 6 }}
+      {{- include "aiops-orchestrator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -22,7 +22,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "simple-ai-agent.labels" . | nindent 8 }}
+        {{- include "aiops-orchestrator.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -31,7 +31,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "simple-ai-agent.serviceAccountName" . }}
+      serviceAccountName: {{ include "aiops-orchestrator.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -47,9 +47,9 @@ spec:
           # Load all non-sensitive config from ConfigMap and secrets from Secret
           envFrom:
             - configMapRef:
-                name: {{ include "simple-ai-agent.configmapName" . }}
+                name: {{ include "aiops-orchestrator.configmapName" . }}
             - secretRef:
-                name: {{ include "simple-ai-agent.secretName" . }}
+                name: {{ include "aiops-orchestrator.secretName" . }}
           env:
             {{- if .Values.postgresql.enabled }}
             # Inject postgresql password for URL construction in DATABASE_URL below
@@ -59,7 +59,7 @@ spec:
                   name: {{ .Release.Name }}-postgresql
                   key: password
             - name: DATABASE_URL
-              value: {{ include "simple-ai-agent.databaseUrl" . | quote }}
+              value: {{ include "aiops-orchestrator.databaseUrl" . | quote }}
             {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}

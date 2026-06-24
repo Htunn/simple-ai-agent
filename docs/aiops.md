@@ -12,7 +12,7 @@ It transforms the agent from a reactive chatbot into a proactive SRE assistant t
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Simple AI Agent                           │
+│                        AIOps Orchestrator                           │
 │                                                                  │
 │  ┌────────────┐   events   ┌─────────────┐   matches   ┌──────┐ │
 │  │K8sWatchLoop│──────────▶│ RuleEngine  │────────────▶│      │ │

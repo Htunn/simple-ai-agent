@@ -195,8 +195,8 @@ jobs:
 
       - name: Package Helm chart
         run: |
-          helm dependency update helm/simple-ai-agent
-          helm package helm/simple-ai-agent --destination ./helm-packages
+          helm dependency update helm/aiops-orchestrator
+          helm package helm/aiops-orchestrator --destination ./helm-packages
 
       - name: Push Helm chart to GHCR
         run: |

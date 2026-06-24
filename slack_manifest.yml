@@ -2,7 +2,7 @@ _metadata:
   major_version: 2
 
 display_information:
-  name: Simple AI Agent
+  name: AIOps Orchestrator
   description: >-
     AI-powered assistant with Kubernetes management, AIOps automation,
     and multi-model LLM support (GPT-4o, Claude, Llama).
@@ -14,7 +14,7 @@ features:
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
   bot_user:
-    display_name: simple-ai-agent
+    display_name: aiops-orchestrator
     always_online: true
 
 oauth_config:

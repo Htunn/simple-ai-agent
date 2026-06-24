@@ -1,10 +1,10 @@
 # Database Architecture
 
-This document provides comprehensive documentation on the database architecture of the Simple AI Agent, including PostgreSQL and Redis use cases, schema design, and performance considerations.
+This document provides comprehensive documentation on the database architecture of the AIOps Orchestrator, including PostgreSQL and Redis use cases, schema design, and performance considerations.
 
 ## Overview
 
-The Simple AI Agent uses a hybrid database architecture combining:
+The AIOps Orchestrator uses a hybrid database architecture combining:
 - **PostgreSQL**: Relational database for persistent storage
 - **Redis**: In-memory cache for high-performance session management
 

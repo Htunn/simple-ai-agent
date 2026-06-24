@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "simple-ai-agent.fullname" . }}-test-connection"
+  name: "{{ include "aiops-orchestrator.fullname" . }}-test-connection"
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simple-ai-agent.labels" . | nindent 4 }}
+    {{- include "aiops-orchestrator.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -17,4 +17,4 @@ spec:
       args:
         - '--spider'
         - '--timeout=10'
-        - 'http://{{ include "simple-ai-agent.fullname" . }}:{{ .Values.service.port }}/health'
+        - 'http://{{ include "aiops-orchestrator.fullname" . }}:{{ .Values.service.port }}/health'

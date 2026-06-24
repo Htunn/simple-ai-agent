@@ -29,7 +29,7 @@ assignees: ""
 - OS:
 - Python version:
 - Docker version (if applicable):
-- Simple AI Agent version / commit:
+- AIOps Orchestrator version / commit:
 - Channel (Telegram / Slack):
 
 ## Configuration (secrets removed)

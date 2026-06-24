@@ -1,4 +1,4 @@
-# Contributing to Simple AI Agent
+# Contributing to AIOps Orchestrator
 
 Thank you for your interest in contributing! This document outlines the process for contributing to the project.
 
@@ -11,8 +11,8 @@ Be respectful, inclusive, and constructive. We welcome contributions from everyo
 1. **Fork** the repository on GitHub
 2. **Clone** your fork locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/simple-ai-agent.git
-   cd simple-ai-agent
+   git clone https://github.com/YOUR_USERNAME/aiops-orchestrator.git
+   cd aiops-orchestrator
    ```
 3. **Set up** the development environment:
    ```bash

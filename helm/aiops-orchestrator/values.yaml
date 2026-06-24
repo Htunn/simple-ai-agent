@@ -1,11 +1,11 @@
-# Default values for simple-ai-agent.
-# Override with: helm install ai-agent ./helm/simple-ai-agent -f my-values.yaml
+# Default values for aiops-orchestrator.
+# Override with: helm install ai-agent ./helm/aiops-orchestrator -f my-values.yaml
 
 # ---------------------------------------------------------------------------
 # Image
 # ---------------------------------------------------------------------------
 image:
-  repository: ghcr.io/htunn/simple-ai-agent
+  repository: ghcr.io/htunn/aiops-orchestrator
   tag: "latest"
   pullPolicy: Always
 
@@ -102,7 +102,7 @@ app:
 # ---------------------------------------------------------------------------
 otel:
   enabled: false
-  serviceName: "simple-ai-agent"
+  serviceName: "aiops-orchestrator"
   # endpoint is auto-computed from jaeger subchart when jaeger.enabled=true;
   # set this when jaeger.enabled=false and you have an existing collector.
   endpoint: ""

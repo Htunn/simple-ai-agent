@@ -167,7 +167,7 @@ Add to `~/.claude/settings.json`:
   "mcpServers": {
     "kubernetes": {
       "command": "python3",
-      "args": ["/path/to/simple-ai-agent/scripts/mcp_server.py"]
+      "args": ["/path/to/aiops-orchestrator/scripts/mcp_server.py"]
     }
   }
 }

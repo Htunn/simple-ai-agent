@@ -15,13 +15,12 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import src.monitoring.metrics as _metrics  # noqa: F401 — registers Prometheus metrics on import
-from src.ai import GitHubModelsClient
+from src.ai import AIRouter
 from src.api import health_router, limiter, set_message_router, webhook_router
 from src.api.middleware import ContentSizeLimitMiddleware, CorrelationIdMiddleware
 from src.channels import create_router
 from src.config import get_settings
 from src.database import close_db, close_redis, init_db, init_redis
-from src.mcp.mcp_manager import MCPManager
 from src.monitoring.tracing import instrument_fastapi, setup_tracing, shutdown_tracing
 from src.services import MessageHandler
 from src.utils import configure_logging
@@ -32,7 +31,6 @@ settings = get_settings()
 # Global instances
 router: Any = None
 handler: Any = None
-mcp_manager: Any = None
 watchloop: Any = None
 approval_manager: Any = None
 playbook_executor: Any = None
@@ -41,7 +39,7 @@ playbook_executor: Any = None
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
-    global router, handler, mcp_manager, watchloop, approval_manager, playbook_executor
+    global router, handler, watchloop, approval_manager, playbook_executor
 
     logger.info("starting_application", environment=settings.environment)
 
@@ -77,34 +75,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("creating_message_router")
     router = create_router()
 
-    # Create AI client
-    logger.info("initializing_ai_client")
-    ai_client = GitHubModelsClient()
-
-    # Initialize MCP manager (manages multiple MCP servers with different transports)
-    logger.info("initializing_mcp_manager")
-    mcp_manager = MCPManager()
-
-    # Start all configured MCP servers
-    try:
-        if await mcp_manager.start():
-            server_info = mcp_manager.get_server_info()
-            logger.info(
-                "mcp_servers_started",
-                servers=server_info["connected_servers"],
-                total_tools=server_info["total_tools"],
-            )
-        else:
-            logger.warning("mcp_manager_initialization_failed")
-            mcp_manager = None
-    except Exception as e:
-        logger.warning("mcp_initialization_error", error=str(e))
-        # Continue without MCP if it fails
-        mcp_manager = None
+    # Create AI router (dispatches to GitHub Models or Gemini based on model prefix)
+    logger.info("initializing_ai_router")
+    ai_client = AIRouter()
 
     # Create message handler
     logger.info("creating_message_handler")
-    handler = MessageHandler(router, ai_client, mcp_manager)
+    handler = MessageHandler(router, ai_client)
 
     # Set handler for router
     router.set_message_handler(handler.handle_message)
@@ -263,7 +240,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # Create FastAPI application
 app = FastAPI(
-    title="Simple AI Agent",
+    title="AIOps Orchestrator",
     description="Multi-channel AI agent with GitHub Models integration",
     version="0.1.0",
     lifespan=lifespan,
@@ -302,7 +279,7 @@ async def metrics() -> PlainTextResponse:
 async def root() -> dict[str, str]:
     """Root endpoint."""
     return {
-        "name": "Simple AI Agent",
+        "name": "AIOps Orchestrator",
         "version": "0.1.0",
         "status": "running",
         "environment": settings.environment,

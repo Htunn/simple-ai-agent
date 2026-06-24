@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "simple-ai-agent.configmapName" . }}
+  name: {{ include "aiops-orchestrator.configmapName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simple-ai-agent.labels" . | nindent 4 }}
+    {{- include "aiops-orchestrator.labels" . | nindent 4 }}
 data:
   # Application settings
   LOG_LEVEL: {{ .Values.app.logLevel | quote }}
@@ -30,11 +30,11 @@ data:
   OTEL_ENABLED: {{ .Values.otel.enabled | quote }}
   OTEL_SERVICE_NAME: {{ .Values.otel.serviceName | quote }}
   OTEL_SAMPLE_RATE: {{ .Values.otel.sampleRate | quote }}
-  OTLP_ENDPOINT: {{ include "simple-ai-agent.otlpEndpoint" . | quote }}
+  OTLP_ENDPOINT: {{ include "aiops-orchestrator.otlpEndpoint" . | quote }}
 
   # Observability URLs
-  PROMETHEUS_URL: {{ include "simple-ai-agent.prometheusUrl" . | quote }}
-  GRAFANA_URL: {{ include "simple-ai-agent.grafanaUrl" . | quote }}
+  PROMETHEUS_URL: {{ include "aiops-orchestrator.prometheusUrl" . | quote }}
+  GRAFANA_URL: {{ include "aiops-orchestrator.grafanaUrl" . | quote }}
 
   # Redis
-  REDIS_URL: {{ include "simple-ai-agent.redisUrl" . | quote }}
+  REDIS_URL: {{ include "aiops-orchestrator.redisUrl" . | quote }}

@@ -2,7 +2,7 @@
 Trigger an AIOps CrashLoop remediation playbook that sends a MEDIUM-risk
 approval request to Slack DM.
 
-Run: docker exec simple-ai-agent python3 /app/scripts/trigger_aiops_approval.py
+Run: docker exec aiops-orchestrator python3 /app/scripts/trigger_aiops_approval.py
 """
 import asyncio
 import re

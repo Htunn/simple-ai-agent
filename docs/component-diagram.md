@@ -1,6 +1,6 @@
 # Component Diagram
 
-This diagram shows the high-level components of the Simple AI Agent system and their interactions.
+This diagram shows the high-level components of the AIOps Orchestrator system and their interactions.
 
 ## System Components
 
@@ -204,7 +204,7 @@ Session Manager → Repositories → PostgreSQL (slow path)
 flowchart TB
     subgraph Docker["Docker Compose"]
         subgraph AppContainer["App Container"]
-            App["Simple AI Agent<br/>(Python 3.12)"]
+            App["AIOps Orchestrator<br/>(Python 3.12)"]
         end
         subgraph DBContainer["PostgreSQL Container"]
             DB[("PostgreSQL 16")]

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Simple AI Agent are documented here.
+All notable changes to AIOps Orchestrator are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).  
 This project uses [Semantic Versioning](https://semver.org/).
@@ -35,7 +35,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 - `config/` directory with Prometheus, Alertmanager, and Grafana provisioning configs
 
 ### Changed
-- Application name: **Simple AI Agent**
+- Application name: **AIOps Orchestrator**
 - Database defaults updated to use `aiagent` database name
 - `lifespan()` now initialises ApprovalManager and PlaybookExecutor at startup
 
@@ -106,8 +106,8 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/YOUR_USERNAME/simple-ai-agent/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/YOUR_USERNAME/simple-ai-agent/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/YOUR_USERNAME/simple-ai-agent/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/YOUR_USERNAME/simple-ai-agent/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/YOUR_USERNAME/simple-ai-agent/releases/tag/v0.1.0
+[Unreleased]: https://github.com/YOUR_USERNAME/aiops-orchestrator/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/YOUR_USERNAME/aiops-orchestrator/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/YOUR_USERNAME/aiops-orchestrator/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/YOUR_USERNAME/aiops-orchestrator/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/YOUR_USERNAME/aiops-orchestrator/releases/tag/v0.1.0

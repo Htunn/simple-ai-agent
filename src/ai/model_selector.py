@@ -101,3 +101,17 @@ class ModelSelector:
             # Create if doesn't exist
             config = await self.channel_config_repo.create(channel_type, model)
         return config is not None
+
+    @staticmethod
+    def is_valid_model(model: str) -> bool:
+        """Return True if *model* is a known alias for any supported backend.
+
+        Accepts GitHub Models aliases and all gemini-* model names.
+        """
+        from src.ai.github_models import GitHubModelsClient
+        from src.ai.gemini_client import GeminiClient
+
+        github_aliases = set(GitHubModelsClient.SUPPORTED_MODELS.keys())
+        gemini_aliases = set(GeminiClient.SUPPORTED_MODELS.keys())
+        known = github_aliases | gemini_aliases
+        return model in known or model.startswith("gemini-")

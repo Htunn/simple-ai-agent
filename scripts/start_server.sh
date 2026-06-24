@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo -e "${GREEN}🚀 Starting Simple AI Agent Server${NC}"
+echo -e "${GREEN}🚀 Starting AIOps Orchestrator Server${NC}"
 echo "=================================================="
 
 # Change to project root

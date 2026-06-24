@@ -47,7 +47,9 @@ class PromptManager:
 
 **General Commands:**
 /help - Show this help message
-/model <name> - Set AI model (gpt-4, claude-3-opus, llama-3-70b)
+/model <name> - Set AI model
+  GitHub Models: gpt-4, gpt-4o, claude-3-opus, llama-3-70b
+  Gemini:        gemini-2.0-flash, gemini-2.5-pro, gemini-2.5-flash
 /reset - Start a new conversation
 /status - Show current model and conversation stats
 

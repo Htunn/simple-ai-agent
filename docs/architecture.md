@@ -2,7 +2,7 @@
 
 ## Overview
 
-Simple AI Agent is a production-ready multi-channel conversational AI system built with a modular, layered architecture. The system follows Domain-Driven Design (DDD) principles with clear separation of concerns across presentation, application, domain, and infrastructure layers.
+AIOps Orchestrator is a production-ready multi-channel conversational AI system built with a modular, layered architecture. The system follows Domain-Driven Design (DDD) principles with clear separation of concerns across presentation, application, domain, and infrastructure layers.
 
 ## Core Principles
 

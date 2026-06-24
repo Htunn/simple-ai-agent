@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # GitHub Models API
     github_token: str = Field(..., description="GitHub fine-grained personal access token")
 
+    # Google Gemini API
+    gemini_api_key: str | None = Field(None, description="Google Gemini API key")
+
     # Telegram Bot
     telegram_token: str | None = Field(None, description="Telegram bot token")
 
@@ -128,7 +131,7 @@ class Settings(BaseSettings):
         default=False, description="Enable OpenTelemetry distributed tracing"
     )
     otel_service_name: str = Field(
-        default="simple-ai-agent", description="OTel service.name resource attribute"
+        default="aiops-orchestrator", description="OTel service.name resource attribute"
     )
     otlp_endpoint: str | None = Field(
         None, description="OTLP gRPC endpoint, e.g. http://jaeger:4317"

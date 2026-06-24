@@ -9,7 +9,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🛑 Stopping Simple AI Agent Server${NC}"
+echo -e "${YELLOW}🛑 Stopping AIOps Orchestrator Server${NC}"
 echo "=================================================="
 
 # Find and kill uvicorn processes

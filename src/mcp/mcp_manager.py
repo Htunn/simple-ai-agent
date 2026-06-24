@@ -122,7 +122,7 @@ class MCPManager:
 
         # Initialize the server
         try:
-            await transport.initialize({"name": "simple-ai-agent", "version": "1.0.0"})
+            await transport.initialize({"name": "aiops-orchestrator", "version": "1.0.0"})
 
             # Register tools
             tools = await transport.list_tools()

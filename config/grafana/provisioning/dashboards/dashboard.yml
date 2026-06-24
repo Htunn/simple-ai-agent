@@ -2,7 +2,7 @@
 apiVersion: 1
 
 providers:
-  - name: Simple AI Agent
+  - name: AIOps Orchestrator
     orgId: 1
     type: file
     disableDeletion: false

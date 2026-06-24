@@ -15,7 +15,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT"
 
-echo -e "${GREEN}🚀  Simple AI Agent – Production Start${NC}"
+echo -e "${GREEN}🚀  AIOps Orchestrator – Production Start${NC}"
 echo "======================================================"
 
 # ── 1. Validate .env ───────────────────────────────────────────────────────

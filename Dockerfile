@@ -7,17 +7,17 @@ ARG VCS_REF
 ARG VERSION=1.0.0
 
 LABEL org.opencontainers.image.created="${BUILD_DATE}" \
-    org.opencontainers.image.authors="Simple AI Agent Contributors" \
-    org.opencontainers.image.url="https://github.com/Htunn/simple-ai-agent" \
-    org.opencontainers.image.source="https://github.com/Htunn/simple-ai-agent" \
+    org.opencontainers.image.authors="AIOps Orchestrator Contributors" \
+    org.opencontainers.image.url="https://github.com/Htunn/aiops-orchestrator" \
+    org.opencontainers.image.source="https://github.com/Htunn/aiops-orchestrator" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
-    org.opencontainers.image.title="Simple AI Agent" \
-    org.opencontainers.image.description="Production-ready multi-channel AI agent with AIOps, Kubernetes management, and MCP integration" \
+    org.opencontainers.image.title="AIOps Orchestrator" \
+    org.opencontainers.image.description="Production-ready multi-channel AI agent with AIOps, Kubernetes management, and multi-LLM support" \
     org.opencontainers.image.licenses="MIT"
 
 # Install build dependencies
-# kubectl required for Kubernetes MCP server
+# kubectl required for Kubernetes management
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -75,7 +75,6 @@ RUN groupadd -g 1000 appuser && \
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser scripts/ ./scripts/
 COPY --chown=appuser:appuser alembic.ini .
-COPY --chown=appuser:appuser .mcp-config.json .
 
 # Switch to non-root user
 USER appuser
@@ -85,8 +84,6 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
-    # MCP configuration
-    MCP_CONFIG_PATH=/app/.mcp-config.json \
     # Production settings
     ENVIRONMENT=production \
     LOG_LEVEL=INFO \

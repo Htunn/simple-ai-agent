@@ -1,13 +1,13 @@
 # Slack Integration Guide
 
-This guide explains how to integrate Simple AI Agent with Slack using the Events API.
+This guide explains how to integrate AIOps Orchestrator with Slack using the Events API.
 The recommended approach uses the [App Manifest](https://docs.slack.dev/app-manifests/configuring-apps-with-app-manifests/)
 — a single YAML file that configures the entire Slack app in one step.
 
 ## Prerequisites
 
 - A Slack workspace where you can create apps
-- Simple AI Agent deployed and reachable via a public HTTPS URL
+- AIOps Orchestrator deployed and reachable via a public HTTPS URL
 - Your deployment URL (e.g. `https://your-domain.com`)
 
 ---
@@ -69,8 +69,8 @@ SLACK_SIGNING_SECRET=your-signing-secret-here
 ### Step 6 — Restart and test
 
 1. Restart the application: `docker compose up -d` or `uvicorn src.main:app --reload`
-2. In Slack, invite the bot to a channel: `/invite @simple-ai-agent`
-3. Mention it: `@simple-ai-agent hello!`
+2. In Slack, invite the bot to a channel: `/invite @aiops-orchestrator`
+3. Mention it: `@aiops-orchestrator hello!`
 4. For a DM: open the bot's profile → **Message**
 
 ---
@@ -120,7 +120,7 @@ In **Event Subscriptions**:
 ### Direct Mentions
 Mention the bot in any channel it has been invited to:
 ```
-@simple-ai-agent list all pods in the default namespace
+@aiops-orchestrator list all pods in the default namespace
 ```
 
 ### Direct Messages
@@ -184,7 +184,7 @@ SlackAdapter.send_message()  →  Slack Web API  →  User
 | Symptom | Fix |
 |---|---|
 | Webhook URL not verified | Ensure the agent is running and the URL is publicly reachable |
-| Bot not responding in channel | Run `/invite @simple-ai-agent` in the channel |
+| Bot not responding in channel | Run `/invite @aiops-orchestrator` in the channel |
 | `invalid_auth` error in logs | Check `SLACK_BOT_TOKEN` is correctly set and starts with `xoxb-` |
 | `403` signature errors | Confirm `SLACK_SIGNING_SECRET` matches the value in Slack **Basic Information** |
 | Bot replies to its own messages | Verify `auth.test` is succeeding — the adapter filters out its own `user_id` |

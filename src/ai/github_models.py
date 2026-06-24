@@ -1,4 +1,4 @@
-"""GitHub Models API client."""
+"""GitHub Models / Azure AI Inference backend client."""
 
 from collections.abc import AsyncGenerator
 from typing import Any, cast
@@ -7,13 +7,14 @@ import structlog
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from src.ai.base_client import BaseAIClient
 from src.config import get_settings
 
 logger = structlog.get_logger()
 settings = get_settings()
 
 
-class GitHubModelsClient:
+class GitHubModelsClient(BaseAIClient):
     """Client for GitHub Models API using OpenAI SDK."""
 
     # Supported models on GitHub Models (Azure AI Inference)

@@ -3,10 +3,10 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "simple-ai-agent"
+name = "aiops-orchestrator"
 version = "0.4.0"
 description = "Production-ready multi-channel AI agent with AIOps, Kubernetes management, and MCP integration"
-authors = [{name = "Simple AI Agent Contributors"}]
+authors = [{name = "AIOps Orchestrator Contributors"}]
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}

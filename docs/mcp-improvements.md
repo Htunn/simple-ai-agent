@@ -92,7 +92,7 @@ Client → Server:
     "protocolVersion": "2024-11-05",
     "capabilities": {},
     "clientInfo": {
-      "name": "simple-ai-agent",
+      "name": "aiops-orchestrator",
       "version": "1.0.0"
     }
   }
@@ -247,7 +247,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "kubernetes": {
       "command": "python3",
-      "args": ["/path/to/simple-ai-agent/scripts/mcp_server.py"]
+      "args": ["/path/to/aiops-orchestrator/scripts/mcp_server.py"]
     }
   }
 }

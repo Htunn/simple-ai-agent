@@ -1,11 +1,11 @@
-# Prometheus configuration for Simple AI Agent AIOps stack
+# Prometheus configuration for AIOps Orchestrator AIOps stack
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   scrape_timeout: 10s
   external_labels:
     environment: production
-    service: simple-ai-agent
+    service: aiops-orchestrator
 
 # Load alert rules
 rule_files:
@@ -22,7 +22,7 @@ alerting:
 # Scrape configurations
 scrape_configs:
   # ── Application ────────────────────────────────────────────────
-  - job_name: simple-ai-agent
+  - job_name: aiops-orchestrator
     scrape_interval: 15s
     static_configs:
       - targets:

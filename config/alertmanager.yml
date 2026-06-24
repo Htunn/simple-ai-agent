@@ -1,4 +1,4 @@
-# Alertmanager configuration for Simple AI Agent AIOps
+# Alertmanager configuration for AIOps Orchestrator AIOps
 global:
   # How long to wait before re-sending a previously resolved alert
   resolve_timeout: 5m
@@ -15,7 +15,7 @@ global:
 # ── Routing ─────────────────────────────────────────────────────────────────
 route:
   # Default receiver
-  receiver: simple-ai-agent-webhook
+  receiver: aiops-orchestrator-webhook
   # Group alerts by alertname + namespace combo
   group_by: ['alertname', 'namespace', 'severity']
   # Wait this long before sending a new group of alerts
@@ -28,7 +28,7 @@ route:
     # Critical alerts — send immediately with shorter repeat
     - match:
         severity: critical
-      receiver: simple-ai-agent-webhook
+      receiver: aiops-orchestrator-webhook
       group_wait: 10s
       repeat_interval: 1h
       continue: false
@@ -36,7 +36,7 @@ route:
     # Warning alerts — use default timing
     - match:
         severity: warning
-      receiver: simple-ai-agent-webhook
+      receiver: aiops-orchestrator-webhook
       repeat_interval: 6h
 
 # ── Inhibit rules ───────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ inhibit_rules:
 
 # ── Receivers ───────────────────────────────────────────────────────────────
 receivers:
-  - name: simple-ai-agent-webhook
+  - name: aiops-orchestrator-webhook
     webhook_configs:
       - url: "http://app:8000/api/webhook/alertmanager"
         # Optional HMAC secret — must match ALERTMANAGER_WEBHOOK_SECRET env var
