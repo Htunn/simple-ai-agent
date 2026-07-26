@@ -578,20 +578,110 @@ Copy `.env.example` to `.env`.
 | `OTEL_ENABLED` | — | `false` | Enable OpenTelemetry tracing |
 | `OTLP_ENDPOINT` | — | `http://jaeger:4317` | OTLP gRPC endpoint |
 | `OTEL_SERVICE_NAME` | — | `aiops-orchestrator` | Service name in traces |
+| `A2A_ENABLED` | — | `false` | Enable Agent-to-Agent integration |
+| `A2A_AGENT_ID` | — | — | This orchestrator's A2A agent ID |
+| `A2A_AGENT_NAME` | — | `aiops-orchestrator` | Display name for A2A |
+| `A2A_AGENTS_CONFIG_PATH` | — | `config/agents.yml` | Agent registry config file |
+| `A2A_JWT_SECRET` | — | `change-me-in-production` | JWT signing secret ⚠️ **MUST change in prod** |
+| `A2A_WEBHOOK_URL` | — | — | Callback URL for async task results |
+| `A2A_TOKEN_EXPIRY_HOURS` | — | `1` | JWT token expiration time |
+| `API_BACKENDS_CONFIG_PATH` | — | `config/api_backends.yml` | API monitoring config |
+| `API_WATCHLOOP_ENABLED` | — | `false` | Enable external API monitoring |
+| `API_WATCHLOOP_INTERVAL` | — | `60` | API health check interval (seconds) |
 
 ---
 
 ## API Reference
 
+### Core Endpoints
+
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/` | Root — name, version, environment |
-| `GET` | `/health` | Full health (DB, Redis, K8s, Prometheus, watchloop) |
+| `GET` | `/health` | Full health (DB, Redis, K8s, Prometheus, watchloop, A2A) |
+| `GET` | `/health/a2a` | A2A subsystem health (agents, registry, tasks) |
+| `GET` | `/health/api-backends` | External API monitoring status |
 | `GET` | `/ready` | Readiness probe |
+| `GET` | `/metrics` | Prometheus metrics endpoint |
+
+### Webhook Endpoints
+
+| Method | Path | Description |
+|---|---|---|
 | `POST` | `/api/webhook/telegram` | Telegram update webhook |
 | `POST` | `/api/webhook/slack` | Slack Events API webhook |
 | `POST` | `/api/alert/webhook` | Alertmanager webhook receiver |
 | `GET` | `/api/webhook/test` | Webhook connectivity test |
+
+### A2A Endpoints (v2.0.0)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/a2a/register` | Register new AI agent |
+| `GET` | `/api/a2a/agents` | List all registered agents |
+| `GET` | `/api/a2a/agents/{agent_id}` | Get agent details |
+| `DELETE` | `/api/a2a/agents/{agent_id}` | Deregister agent |
+| `POST` | `/api/a2a/delegate` | Delegate task to agent |
+| `GET` | `/api/a2a/tasks/{task_id}` | Get task status |
+| `POST` | `/api/a2a/webhook` | Receive async task completion |
+
+---
+
+## Chat Commands
+
+### General Commands
+
+| Command | Description |
+|---|---|
+| `/help` | Show available commands |
+| `/model <name>` | Switch AI model (`gpt-4o`, `gemini-2.5-flash`, `claude-3-opus`, etc.) |
+| `/health` | Check system health status |
+
+### Kubernetes Commands
+
+| Command | Description |
+|---|---|
+| `/k8s pods [namespace]` | List pods |
+| `/k8s deployments [namespace]` | List deployments |
+| `/k8s services [namespace]` | List services |
+| `/k8s nodes` | List cluster nodes |
+| `/k8s namespaces` | List all namespaces |
+| `/k8s scale <deployment> <replicas> [namespace]` | Scale deployment |
+| `/k8s logs <pod> [namespace]` | Get pod logs |
+| `/k8s describe <resource> <name> [namespace]` | Describe resource |
+| `/k8s events [namespace]` | Show recent events |
+
+### A2A Commands (v2.0.0)
+
+| Command | Description |
+|---|---|
+| `/a2a help` | Show A2A command reference |
+| `/a2a agents [capability]` | List registered agents (optional filter by capability) |
+| `/a2a agent <id>` | Show detailed agent information |
+| `/a2a status` | Show A2A system status |
+| `@agent-name <task>` | Natural language task delegation |
+| `@capability: param=value, param2=value2` | Structured task delegation |
+
+### Approval Commands
+
+| Command | Description |
+|---|---|
+| `approve <id>` | Approve pending remediation action |
+| `reject <id>` | Reject pending remediation action |
+
+### Natural Language Examples
+
+```
+# Kubernetes queries
+"show me all error pods in production"
+"what pods are not ready?"
+"scale the api deployment to 10 replicas"
+
+# A2A delegation
+"@k8s-operator restart the api-server pods in production"
+"@log-analyzer find errors in api-service from last 24 hours"
+"@database.query: database=analytics, query=SELECT COUNT(*) FROM errors"
+```
 
 ---
 
@@ -602,6 +692,7 @@ aiops-orchestrator/
 ├── src/
 │   ├── main.py                   # Application entry point & lifespan
 │   ├── config.py                 # Pydantic Settings (env vars)
+│   ├── exceptions.py             # Custom exception classes
 │   ├── ai/
 │   │   ├── base_client.py        # BaseAIClient ABC
 │   │   ├── ai_router.py          # Route by model prefix to GitHub/Gemini
@@ -616,28 +707,53 @@ aiops-orchestrator/
 │   │   ├── slack_adapter.py      # slack_bolt adapter
 │   │   └── router.py             # Fan-out / fan-in router
 │   ├── api/
-│   │   ├── health.py             # /health, /ready endpoints
+│   │   ├── health.py             # /health, /ready, /health/a2a, /health/api-backends
 │   │   ├── webhooks.py           # /api/webhook/* endpoints
+│   │   ├── a2a_endpoints.py      # /api/a2a/* REST API (7 endpoints)
 │   │   └── middleware.py         # Rate limiter setup
 │   ├── services/
-│   │   ├── message_handler.py    # Intent detection & routing
+│   │   ├── message_handler.py    # Intent detection & routing + A2A delegation
 │   │   ├── session_manager.py    # Redis TTL sessions
 │   │   ├── kubernetes_handler.py # NL K8s query handler
-│   │   └── approval_manager.py   # Human-in-the-loop approvals
+│   │   ├── approval_manager.py   # Human-in-the-loop approvals
+│   │   ├── agent_registry.py     # A2A agent registration & discovery
+│   │   ├── task_delegator.py     # A2A task delegation orchestrator
+│   │   ├── capability_matcher.py # A2A capability scoring (0.0-1.0)
+│   │   ├── a2a_auth.py           # JWT & API key authentication
+│   │   ├── a2a_client.py         # HTTP client for agent-to-agent calls
+│   │   ├── mcp_client.py         # MCP client for tool invocation
+│   │   └── mcp_registry.py       # MCP server registry
+│   ├── models/
+│   │   ├── agent.py              # A2A Pydantic models (10 classes)
+│   │   └── api_backend.py        # API backend config & status models
 │   ├── aiops/
-│   │   ├── rule_engine.py        # Alert rule matching
+│   │   ├── rule_engine.py        # Alert rule matching (K8s + API backends)
 │   │   ├── playbooks.py          # Playbook registry & executor
 │   │   ├── rca_engine.py         # LLM-powered root-cause analysis
 │   │   └── log_analyzer.py       # Log pattern analysis
 │   ├── monitoring/
 │   │   ├── watchloop.py          # K8s background watch-loop
+│   │   ├── api_watchloop.py      # External API health monitoring
+│   │   ├── metrics.py            # Prometheus metrics definitions
 │   │   ├── prometheus.py         # Prometheus metrics helpers
 │   │   ├── grafana.py            # Grafana annotation helper
 │   │   └── tracing.py            # OpenTelemetry setup
+│   ├── mcp/
+│   │   ├── base_transport.py     # Base MCP transport interface
+│   │   ├── stdio_transport.py    # Stdio MCP transport
+│   │   ├── sse_transport.py      # SSE MCP transport
+│   │   ├── kubernetes_server.py  # MCP Kubernetes server (13 tools)
+│   │   ├── api_tools.py          # API diagnostic tools (4 tools)
+│   │   └── mcp_manager.py        # MCP server lifecycle manager
+│   ├── k8s/
+│   │   └── client.py             # Kubernetes client wrapper
+│   ├── utils/
+│   │   └── logger.py             # Structured logging setup
 │   └── database/
-│       ├── models.py             # SQLAlchemy ORM models
+│       ├── models.py             # SQLAlchemy ORM models (+ A2A tables)
 │       ├── postgres.py           # Async engine + session factory
 │       ├── redis.py              # Redis connection pool
+│       ├── migrations/           # Alembic migration versions
 │       └── repositories/         # Data-access layer (CRUD)
 ├── scripts/
 │   ├── init_db.py                # Manual DB init helper
@@ -647,7 +763,9 @@ aiops-orchestrator/
 ├── config/
 │   ├── prometheus.yml            # Prometheus scrape config
 │   ├── alertmanager.yml          # Alertmanager routing config
-│   ├── alert_rules.yml           # Prometheus alert rules
+│   ├── alert_rules.yml           # Prometheus alert rules (K8s + API)
+│   ├── api_backends.yml          # External API monitoring config
+│   ├── agents.yml                # A2A agent registry config
 │   └── grafana/                  # Grafana provisioning
 ├── helm/
 │   └── aiops-orchestrator/       # Helm chart for Kubernetes deployment
