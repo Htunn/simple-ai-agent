@@ -194,25 +194,33 @@ Users
                                       Channel Router
                                               |
                                      Message Handler
-                                  +----------+-----------+
-                                  |          |           |
-                           Session Mgr   AI Router   K8s Handler
-                             (Redis)       |           (NL parser)
-                                     +-----+------+         |
-                                     |            |      kubectl
-                              GitHub Models   Gemini    subprocess
-                               (GPT-4o/      (2.5 Pro/
-                                Claude)       2.0 Flash)
-                                  |
-                             PostgreSQL
-                             (history)
+                          +----------+-----------+----------+
+                          |          |           |          |
+                   Session Mgr   AI Router   K8s Handler   Task Delegator
+                     (Redis)       |         (NL parser)    (@agent cmds)
+                               +---+---+         |              |
+                               |       |      kubectl     Capability Matcher
+                        GitHub Models  |    subprocess          |
+                         (GPT-4o/   Gemini                Agent Registry
+                          Claude)  (2.5 Pro/              (PostgreSQL+Redis)
+                                   2.0 Flash)                   |
+                                      |                    A2A Client (JWT)
+                                 PostgreSQL                     |
+                                 (history)              External AI Agents
+                                                        (K8s, Logs, DB, etc.)
 
 AIOps (async background):
-  Watch-Loop --> Rule Engine --> Playbook Executor --> Approval Manager
-       |                                  |                    |
-  K8s Cluster                       kubectl cmds           Redis TTL
-                                          |
-                                    RCA Engine --> AIRouter (SRE prompt)
+  K8s Watch-Loop --+
+  API Watch-Loop --+--> Rule Engine --> Playbook Executor --> Approval Manager
+       |            |         |               |                     |
+  K8s Cluster  External APIs  |         kubectl cmds            Redis TTL
+                               |               |
+                          Alert Rules    RCA Engine --> AIRouter (SRE prompt)
+
+A2A Integration:
+  External Agents --> POST /api/a2a/register --> Agent Registry
+                  --> POST /api/a2a/delegate --> Task Delegator
+                  --> POST /api/a2a/webhook  --> Message Handler (async results)
 
 Observability:
   App /metrics --> Prometheus --> Grafana dashboards
@@ -232,6 +240,8 @@ Observability:
 +------------------------+----------------------------+
 |        AI Layer        |       AIOps Layer          |  AIRouter (Gemini+GitHub) | watchloop, rules, RCA
 +------------------------+----------------------------+
+|                    A2A Layer                         |  Task delegator, agent registry, capability matcher
++-----------------------------------------------------+
 |                    Data Layer                        |  PostgreSQL + Redis
 +-----------------------------------------------------+
 |               Observability Layer                    |  Prometheus metrics, structlog JSON, Grafana
