@@ -363,13 +363,13 @@ This comprehensive diagram shows how all A2A components work together in the AIO
 ```mermaid
 graph TB
     %% User Interaction
-    User[👤 User via Chat] -->|@agent or /a2a| MH[Message Handler]
+    User[User via Chat] -->|User Command| MH[Message Handler]
     
     %% Message Handler Decision
-    MH -->|Command| CMD{Command Type?}
-    CMD -->|/a2a agents| AREG[Agent Registry]
-    CMD -->|/a2a status| HEALTH[Health Check API]
-    CMD -->|@delegation| DEL[Task Delegator]
+    MH -->|Route| CMD{Command Type?}
+    CMD -->|List Agents| AREG[Agent Registry]
+    CMD -->|Check Status| HEALTH[Health Check API]
+    CMD -->|Delegate Task| DEL[Task Delegator]
     
     %% Agent Registry Flow
     AREG -->|Query| DB[(PostgreSQL)]
@@ -394,7 +394,7 @@ graph TB
     AUTH -->|JWT| CLIENT
     
     %% External Agent Communication
-    CLIENT -->|HTTP + JWT| AGENT[🤖 External Agent]
+    CLIENT -->|HTTP Request| AGENT[External Agent]
     AGENT -->|Result| CLIENT
     CLIENT -->|Response| DEL
     
@@ -410,9 +410,9 @@ graph TB
     WEBHOOK -->|Notify User| MH
     
     %% Monitoring
-    PROM -->|Scrape| METRICS[/metrics Endpoint]
+    PROM -->|Scrape| METRICS[Metrics Endpoint]
     METRICS -->|Expose| PROM
-    PROM -->|Visualize| GRAFANA[📊 Grafana]
+    PROM -->|Visualize| GRAFANA[Grafana Dashboard]
     
     style User fill:#e1f5ff
     style AGENT fill:#ffe1e1
@@ -525,7 +525,8 @@ sequenceDiagram
     Delegator->>Registry: find_agents_by_capability("notification.sms")
     Registry-->>Delegator: [] (empty list)
     
-    Delegator-->>User: ❌ A2ACapabilityNotFoundError<br/>"No agents found with capability: notification.sms"<br/><br/>Available capabilities:<br/>• kubernetes.scale<br/>• database.query<br/>• logs.search
+    Delegator-->>User: ❌ A2ACapabilityNotFoundError
+    Note over User,Delegator: No agents found with capability: notification.sms<br/>Available capabilities:<br/>kubernetes.scale, database.query, logs.search
 ```
 
 ### Scenario: Task Timeout
@@ -542,7 +543,8 @@ sequenceDiagram
     Note over Delegator,Agent: 30 seconds pass...
     
     Delegator->>Delegator: Timeout reached
-    Delegator-->>User: ❌ A2ATimeoutError<br/>"Task did not complete within 30s"<br/><br/>Try:<br/>• Increase timeout: timeout_seconds=120<br/>• Use async mode for long tasks
+    Delegator-->>User: ❌ A2ATimeoutError
+    Note over User,Delegator: Task did not complete within 30s<br/>Try: timeout_seconds=120 or async mode
 ```
 
 ---
