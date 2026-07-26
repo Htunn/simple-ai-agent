@@ -1,10 +1,15 @@
 """Configuration settings for the application."""
 
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
+import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.models.api_backend import ApiBackendConfig
 
 
 class Settings(BaseSettings):
@@ -136,9 +141,148 @@ class Settings(BaseSettings):
     otlp_endpoint: str | None = Field(
         None, description="OTLP gRPC endpoint, e.g. http://jaeger:4317"
     )
-    otel_sample_rate: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Trace sampling rate (0.0–1.0)"
+    
+    # AIOps - API Backend Monitoring
+    api_backends_config_path: str = Field(
+        default="config/api_backends.yml",
+        description="Path to API backends configuration file",
     )
+    api_backend_monitoring_enabled: bool = Field(
+        default=True, description="Enable API backend monitoring watchloop"
+    )
+
+    # A2A (Agent-to-Agent) Integration
+    a2a_enabled: bool = Field(
+        default=False, description="Enable Agent-to-Agent integration"
+    )
+    a2a_agent_id: str = Field(
+        default="aiops-orchestrator",
+        description="Unique identifier for this agent",
+    )
+    a2a_agent_name: str = Field(
+        default="AIOps Orchestrator",
+        description="Human-readable name for this agent",
+    )
+    a2a_agents_config_path: str = Field(
+        default="config/agents.yml",
+        description="Path to agents registry configuration file",
+    )
+    a2a_jwt_secret: str = Field(
+        default="change-me-in-production-very-secret-key",
+        description="Secret key for JWT token signing (use strong random value in production)",
+    )
+    a2a_webhook_url: str | None = Field(
+        None,
+        description="Public webhook URL for async task completion callbacks",
+    )
+    a2a_token_expiry_hours: int = Field(
+        default=1,
+        ge=1,
+        le=24,
+        description="JWT token expiry time in hours",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    return Settings()
+
+
+def load_api_backend_configs(config_path: str | None = None) -> list[ApiBackendConfig]:
+    """
+    Load API backend configurations from YAML file.
+
+    Supports environment variable substitution in header values using ${VAR_NAME} syntax.
+    Returns an empty list if the config file doesn't exist or is malformed.
+    """
+    if config_path is None:
+        settings = get_settings()
+        config_path = settings.api_backends_config_path
+
+    # Try relative to project root, then absolute path
+    config_file = Path(config_path)
+    if not config_file.is_absolute():
+        # Assume relative to project root (where alembic.ini is)
+        project_root = Path(__file__).parent.parent
+        config_file = project_root / config_path
+
+    if not config_file.exists():
+        return []
+
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        if not data or "api_backends" not in data:
+            return []
+
+        backends = []
+        for backend_data in data["api_backends"]:
+            # Resolve environment variables in header values
+            if "headers" in backend_data:
+                resolved_headers = {}
+                for key, value in backend_data["headers"].items():
+                    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                        env_var = value[2:-1]
+                        resolved_headers[key] = os.getenv(env_var, "")
+                    else:
+                        resolved_headers[key] = value
+                backend_data["headers"] = resolved_headers
+
+            backends.append(ApiBackendConfig(**backend_data))
+
+        return backends
+    except Exception:
+        # Return empty list on any error (file not found, parse error, validation error)
+        # Errors are logged by the watchloop initialization
+        return []
+
+
+def load_agents_config(config_path: str | None = None) -> dict[str, Any]:
+    """
+    Load agents configuration from YAML file.
+
+    Supports environment variable substitution in URLs and API keys using ${VAR_NAME} syntax.
+    Returns an empty dict if the config file doesn't exist or is malformed.
+    """
+    if config_path is None:
+        settings = get_settings()
+        config_path = settings.a2a_agents_config_path
+
+    # Try relative to project root, then absolute path
+    config_file = Path(config_path)
+    if not config_file.is_absolute():
+        project_root = Path(__file__).parent.parent
+        config_file = project_root / config_path
+
+    if not config_file.exists():
+        return {}
+
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+
+        # Substitute environment variables in agent URLs and API keys
+        for agent in data.get("agents", []):
+            for field in ["url", "api_key", "webhook_url"]:
+                if field in agent and isinstance(agent[field], str):
+                    value = agent[field]
+                    # Pattern: ${VAR_NAME} or ${VAR_NAME:-default}
+                    if value.startswith("${") and "}" in value:
+                        var_spec = value[2:value.index("}")]
+                        # Check for default value syntax: ${VAR:-default}
+                        if ":-" in var_spec:
+                            var_name, default_val = var_spec.split(":-", 1)
+                            agent[field] = os.getenv(var_name, default_val)
+                        else:
+                            agent[field] = os.getenv(var_spec, "")
+
+        return data
+
+    except Exception:
+        # Return empty dict on any error
+        return {}
 
 
 @lru_cache

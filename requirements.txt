@@ -22,11 +22,16 @@ redis[hiredis]==5.0.1
 openai==1.10.0
 google-generativeai>=0.8.0
 
+# Security & Authentication
+bcrypt==4.1.1
+PyJWT==2.8.0
+
 # Utilities
 python-dotenv==1.0.0
 tenacity==8.2.3
 structlog==24.1.0
 slowapi==0.1.9
+PyYAML==6.0.1
 
 # Security — keep patched; cryptography 42.x had CVE-2024-26130 (NULL ptr)
 # and further fixes in 43/44 series. Pin to latest 44 patch. 

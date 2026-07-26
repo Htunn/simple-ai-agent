@@ -1,0 +1,112 @@
+# API Backend Monitoring Configuration
+#
+# This file defines external API endpoints that the AIOps Orchestrator monitors
+# for health, latency, and error rates. When issues are detected, the system
+# triggers remediation playbooks similar to Kubernetes resource monitoring.
+#
+# Environment Variable Substitution:
+#   Use ${VAR_NAME} syntax in headers to reference environment variables.
+#   Example: headers: { Authorization: "Bearer ${MY_API_TOKEN}" }
+#
+# Documentation: docs/api-backend-monitoring.md
+
+api_backends:
+  # Example: Payment Gateway API
+  - name: payment-gateway
+    url: https://api.payment.example.com
+    health_path: /v1/health
+    check_interval_seconds: 30
+    timeout_seconds: 10
+    latency_threshold_ms: 500
+    error_rate_threshold: 0.05  # 5%
+    consecutive_failures_threshold: 2
+    enabled: false  # Set to true to enable monitoring
+    headers:
+      Authorization: "Bearer ${PAYMENT_API_TOKEN}"
+      X-Client-ID: "aiops-orchestrator"
+    ssl_verify: true
+    tags:
+      team: payments
+      tier: critical
+      environment: production
+
+  # Example: Internal User Service
+  - name: user-service
+    url: https://users.internal.example.com
+    health_path: /health
+    check_interval_seconds: 60
+    timeout_seconds: 5
+    latency_threshold_ms: 1000
+    error_rate_threshold: 0.10  # 10%
+    consecutive_failures_threshold: 3
+    enabled: false
+    headers: {}
+    ssl_verify: true
+    tags:
+      team: platform
+      tier: high
+      environment: production
+
+  # Example: Third-Party Weather API
+  - name: weather-api
+    url: https://api.openweathermap.org
+    health_path: /data/2.5/weather?q=London&appid=${WEATHER_API_KEY}
+    check_interval_seconds: 300  # 5 minutes
+    timeout_seconds: 15
+    latency_threshold_ms: 2000
+    error_rate_threshold: 0.15  # 15%
+    consecutive_failures_threshold: 2
+    enabled: false
+    headers: {}
+    ssl_verify: true
+    tags:
+      team: data
+      tier: low
+      environment: production
+      vendor: external
+
+  # Example: Development API (no SSL verification)
+  - name: dev-api
+    url: https://dev.internal.example.com
+    health_path: /healthz
+    check_interval_seconds: 120
+    timeout_seconds: 10
+    latency_threshold_ms: 1500
+    error_rate_threshold: 0.20  # 20%
+    consecutive_failures_threshold: 3
+    enabled: false
+    headers: {}
+    ssl_verify: false  # Use cautiously - only for dev/test environments
+    tags:
+      team: platform
+      tier: low
+      environment: development
+
+# Configuration Tips:
+#
+# 1. Interval Selection:
+#    - Critical services: 30-60 seconds
+#    - High-priority services: 60-120 seconds
+#    - Low-priority services: 300-600 seconds (5-10 minutes)
+#
+# 2. Threshold Tuning:
+#    - Start with conservative thresholds and adjust based on baseline metrics
+#    - Use Prometheus to analyze historical latency and error rates before setting thresholds
+#
+# 3. Rate Limiting:
+#    - Ensure check_interval_seconds respects API provider rate limits
+#    - For rate-limited APIs, use longer intervals (300s+)
+#
+# 4. Security:
+#    - Never commit API tokens directly in this file
+#    - Use environment variable substitution: ${VAR_NAME}
+#    - Store secrets in .env or a secrets manager (Vault, AWS Secrets Manager)
+#
+# 5. SSL Verification:
+#    - Keep ssl_verify: true for production endpoints
+#    - Only disable for internal dev/test environments with self-signed certificates
+#
+# 6. Consecutive Failures:
+#    - Value of 2-3 prevents false alerts from transient network glitches
+#    - Lower values (1-2) for critical services requiring immediate alerts
+#    - Higher values (3-5) for less critical or flaky services

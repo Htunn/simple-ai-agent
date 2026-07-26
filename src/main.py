@@ -17,9 +17,10 @@ from slowapi.errors import RateLimitExceeded
 import src.monitoring.metrics as _metrics  # noqa: F401 — registers Prometheus metrics on import
 from src.ai import AIRouter
 from src.api import health_router, limiter, set_message_router, webhook_router
+from src.api.a2a_endpoints import router as a2a_router
 from src.api.middleware import ContentSizeLimitMiddleware, CorrelationIdMiddleware
 from src.channels import create_router
-from src.config import get_settings
+from src.config import get_settings, load_agents_config
 from src.database import close_db, close_redis, init_db, init_redis
 from src.monitoring.tracing import instrument_fastapi, setup_tracing, shutdown_tracing
 from src.services import MessageHandler
@@ -32,14 +33,16 @@ settings = get_settings()
 router: Any = None
 handler: Any = None
 watchloop: Any = None
+api_watchloop: Any = None
 approval_manager: Any = None
 playbook_executor: Any = None
+agent_registry: Any = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan manager."""
-    global router, handler, watchloop, approval_manager, playbook_executor
+    """Application lifespan manager.""", agent_registry
+    global router, handler, watchloop, api_watchloop, approval_manager, playbook_executor
 
     logger.info("starting_application", environment=settings.environment)
 
@@ -103,6 +106,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("approval_manager_init_failed", error=str(e))
         approval_manager = None
+
+    # ──────────────────────────────────────────────────────────────
+    # A2A: Expose task delegator to message handler (if enabled)
+    # ──────────────────────────────────────────────────────────────
+    if settings.a2a_enabled:
+        try:
+            from src.services.task_delegator import get_task_delegator
+            handler.task_delegator = get_task_delegator()
+            logger.info("a2a_task_delegator_exposed_to_handler")
+        except Exception as e:
+            logger.warning("a2a_task_delegator_init_failed", error=str(e))
 
     # ──────────────────────────────────────────────────────────────
     # AIOps: K8s watch-loop (proactive cluster health polling)
@@ -201,7 +215,119 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             logger.warning("k8s_watchloop_init_failed", error=str(e))
             watchloop = None
+──────────────────────────────────────────────────────────────
+    # AIOps: API Backend watch-loop (external service health monitoring)
+    # ──────────────────────────────────────────────────────────────
+    if settings.api_backend_monitoring_enabled:
+        try:
+            from src.config import load_api_backend_configs
+            from src.monitoring.api_watchloop import ApiBackendWatchLoop
 
+            api_backends = load_api_backend_configs()
+            if not api_backends:
+                logger.info("api_watchloop_no_backends", msg="No API backends configured in config/api_backends.yml")
+            else:
+                # Reuse the same event callback as K8s watchloop — unified event handling
+                api_watchloop = ApiBackendWatchLoop(
+                    backends=api_backends,
+                    event_callback=_on_cluster_event,  # Same callback handles both K8s and API events
+           API Backend watch-loop
+    if api_watchloop:
+        await api_watchloop.stop()
+        logger.info("api_watchloop_stopped")
+
+    # Stop      )
+                asyncio.create_task(api_watchloop.start())
+                logger.info(
+                    "api_watchloop_started",
+                    backend_count=len(api_backends),
+                )
+        except Exception as e:
+            logger.warning("api_watchloop_init_failed", error=str(e))
+            api_watchloop = None
+
+    # ──────────────────────────────────────────────────────────────
+    # A2A: Agent-to-Agent Integration (agent registry & delegation)
+    # ──────────────────────────────────────────────────────────────
+    if settings.a2a_enabled:
+        try:
+            from src.services.agent_registry import get_agent_registry
+
+            agent_registry = get_agent_registry()
+            logger.info("agent_registry_initialized")
+
+            # Load and register agents from config file if auto-register enabled
+            agents_config = load_agents_config()
+            if (
+                agents_config
+                and agents_config.get("settings", {}).get("auto_register_on_startup", False)
+            ):
+                from src.database.postgres import get_db_session
+
+                async with get_db_session() as db:
+                    registered_count = 0
+                    for agent_config in agents_config.get("agents", []):
+                        try:
+                            from src.models.agent import AgentCapability
+
+                            # Convert capabilities dict to AgentCapability objects
+                            capabilities = [
+                                AgentCapability(**cap) for cap in agent_config.get("capabilities", [])
+                            ]
+
+                            # Check if agent already registered
+                            existing = await agent_registry.get_agent(
+                                agent_id=agent_config["agent_id"], db=db
+                            )
+
+                            if not existing:
+                                # Register new agent
+                                agent_info, api_key = await agent_registry.register_agent(
+                                    agent_id=agent_config["agent_id"],
+                                    name=agent_config["name"],
+                                    url=agent_config["url"],
+                                    capabilities=capabilities,
+                                    webhook_url=agent_config.get("webhook_url"),
+                                    version=agent_config.get("version", "1.0.0"),
+                                    metadata=agent_config.get("metadata", {}),
+                                    db=db,
+                                )
+                                registered_count += 1
+                                logger.info(
+                                    "a2a_agent_registered_from_config",
+                                    agent_id=agent_config["agent_id"],
+                                    name=agent_config["name"],
+                                )
+                            else:
+                                logger.debug(
+                                    "a2a_agent_already_registered",
+                                    agent_id=agent_config["agent_id"],
+                                )
+# Include A2A router if enabled
+if settings.a2a_enabled:
+    app.include_router(a2a_router)
+    logger.info("a2a_router_included")
+
+
+                        except Exception as agent_err:
+                            logger.warning(
+                        
+
+
+def get_agent_registry() -> Any:
+    """Return current agent registry instance (for health checks)."""
+    return agent_registry        "a2a_agent_registration_failed",
+                                agent_id=agent_config.get("agent_id", "unknown"),
+                                error=str(agent_err),
+                            )
+
+                    logger.info("a2a_agents_loaded_from_config", count=registered_count)
+
+        except Exception as e:
+            logger.warning("a2a_init_failed", error=str(e))
+            agent_registry = None
+
+    # 
     # Start all channel adapters
     logger.info("starting_channel_adapters")
     asyncio.create_task(router.start_all())
@@ -262,6 +388,11 @@ app.include_router(webhook_router, prefix="/api", tags=["Webhooks"])
 def get_watchloop() -> Any:
     """Return current watchloop instance (for health checks)."""
     return watchloop
+
+
+def get_api_watchloop() -> Any:
+    """Return current API backend watchloop instance (for health checks)."""
+    return api_watchloop
 
 
 def get_approval_manager() -> Any:

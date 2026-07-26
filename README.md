@@ -7,6 +7,62 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](Dockerfile)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psycopg/black)
+[![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)](RELEASE_v2.0.0.md)
+[![Status](https://img.shields.io/badge/status-Production--Stable-success.svg)](RELEASE_v2.0.0.md)
+
+---
+
+## 🎉 Latest Release: v2.0.0 (July 26, 2026)
+
+**Status**: Production Ready ✅ | **[Full Release Notes →](RELEASE_v2.0.0.md)**
+
+### Major Features
+
+#### 🤖 Agent-to-Agent (A2A) Integration
+Multi-agent orchestration platform with intelligent task delegation:
+- **Natural Language Delegation**: `@agent-name do something` in chat
+- **Structured API**: `@capability: param1=val1, param2=val2`
+- **Chat Commands**: `/a2a agents`, `/a2a status`
+- **JWT Authentication**: Secure agent-to-agent communication with capability-based access control
+- **Agent Registry**: PostgreSQL + Redis backed with dynamic discovery (0.0-1.0 capability scoring)
+- **Task Modes**: Synchronous (wait for result) & Asynchronous (webhook callbacks)
+- **REST API**: 7 endpoints for external agent integration
+- **Metrics**: 9 Prometheus metrics for complete observability
+
+#### 🌐 API Backend Monitoring
+Proactive external service monitoring:
+- **Health Checks**: Downtime, latency (P95), error rates, SSL certificate expiration
+- **Smart Alerts**: 4 alert conditions with auto-remediation playbooks
+- **MCP Tools**: DNS lookup, curl test, SSL check, traceroute
+- **Metrics**: 4 Prometheus metrics for Grafana dashboards
+- **Configuration**: Per-endpoint thresholds and check intervals
+
+### Release Statistics
+- **32 New Components** | **8,500+ Lines of Code** | **52KB Documentation**
+- **33 Unit Tests** | **8 Sequence Diagrams** | **13 New Prometheus Metrics**
+- **+7 REST Endpoints** | **+3 Database Tables** | **Production/Stable**
+
+### Quick Start (v2.0.0)
+
+```bash
+# Enable A2A Integration (optional)
+export A2A_ENABLED=true
+export A2A_AGENT_ID="aiops-orchestrator"
+export A2A_JWT_SECRET="$(openssl rand -hex 32)"
+
+# Run database migrations
+docker compose exec aiops-orchestrator alembic upgrade head
+
+# Deploy
+docker compose up -d
+
+# Verify health
+curl http://localhost:8000/health
+curl http://localhost:8000/health/a2a
+curl http://localhost:8000/health/api-backends
+```
+
+**📚 Documentation**: [A2A Integration Guide](docs/a2a-integration.md) | [Sequence Diagrams](docs/a2a-sequence-diagrams.md) | [API Monitoring](docs/api-backend-monitoring.md)
 
 ---
 
@@ -76,6 +132,9 @@ AIOps Orchestrator connects **Telegram and Slack** to a powerful backend engine 
 ### AIOps Engine
 - **K8s Watch-Loop** — background polling every 30 s (configurable)
   - Detects: `CrashLoopBackOff`, `OOMKilled`, `NotReady` nodes, zero-replica deployments
+- **API Backend Watch-Loop** — external service health monitoring
+  - Detects: downtime, high latency (p95), elevated error rates, SSL expiration
+  - Configurable per-endpoint thresholds and check intervals
 - **Rule Engine** — YAML-defined alert rules with severity mapping
 - **Playbook Executor** — ordered step sequences with risk-gated execution
   - `LOW risk` — auto-execute, notify after
@@ -85,6 +144,16 @@ AIOps Orchestrator connects **Telegram and Slack** to a powerful backend engine 
 - **Log Analyzer** — structured log pattern matching
 - **Approval Manager** — Redis-backed TTL approvals; chat-native `approve/reject`
 - **Alertmanager receiver** — `POST /api/alert/webhook` ingests Prometheus alerts
+
+### Agent-to-Agent (A2A) Integration
+- **Agent Registry** — PostgreSQL + Redis-cached registry of AI agents
+- **Dynamic Discovery** — Capability-based agent discovery with scoring (0.0-1.0)
+- **Task Delegation** — Sync and async modes with automatic agent selection
+- **Natural Language** — `@agent-name do something` syntax in chat
+- **Structured API** — REST endpoints for registration, delegation, status
+- **JWT Authentication** — Secure agent-to-agent communication
+- **Webhook Callbacks** — Async task completion notifications
+- **Multi-Agent Workflows** — Chain tasks across specialized agents
 
 ### Data & Performance
 - **PostgreSQL 16** — users, conversations, messages, channel configs, JSONB metadata
@@ -180,6 +249,9 @@ Observability:
 | [`docs/database-architecture.md`](docs/database-architecture.md) | PostgreSQL & Redis schema + performance |
 | [`docs/kubernetes-integration.md`](docs/kubernetes-integration.md) | K8s guide — NL queries, status filters |
 | [`docs/aiops.md`](docs/aiops.md) | AIOps engine — watch-loop, rules, playbooks, RCA |
+| [`docs/api-backend-monitoring.md`](docs/api-backend-monitoring.md) | External API health monitoring |
+| [`docs/a2a-integration.md`](docs/a2a-integration.md) | Agent-to-Agent integration guide |
+| [`docs/a2a-sequence-diagrams.md`](docs/a2a-sequence-diagrams.md) | A2A interaction flows |
 | [`docs/slack-setup.md`](docs/slack-setup.md) | Slack bot setup guide |
 
 ---

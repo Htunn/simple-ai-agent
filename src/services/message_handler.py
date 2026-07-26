@@ -80,6 +80,7 @@ class MessageHandler:
         self.router = router
         self.ai_client = ai_client
         self.approval_manager = None  # Set by main.py after AIOps init
+        self.task_delegator = None  # Set by main.py if A2A enabled
         logger.info("message_handler_initialized")
 
     def _format_kubectl_table(self, output: str, resource_type: str = "pods") -> str:
@@ -441,6 +442,12 @@ class MessageHandler:
                         return  # message was an approval command
                 except Exception as e:
                     logger.warning("approval_process_response_error", error=str(e))
+
+            # ── A2A: check if this is an agent delegation request ────
+            # Syntax: @agent-name do something or @capability: parameters
+            if self.task_delegator and message.content.startswith("@"):
+                await self._handle_agent_delegation(message)
+                return
 
             # Check for commands
             if message.content.startswith("/"):
@@ -1206,6 +1213,9 @@ Tokens: {stats["total_tokens"]}"""
                 response = await self._handle_incident_command(command_parts[1:])
 
             elif command == "/alert":
+            elif command == "/a2a":
+                response = await self._handle_a2a_command(args if len(command_parts) > 1 else [])
+
                 response = await self._handle_alert_command(command_parts[1:])
 
             else:
@@ -1807,6 +1817,125 @@ Note: Kubernetes MCP tools are integrated. You can manage your cluster directly 
 
         except Exception as e:
             logger.error("alert_command_error", error=str(e))
+            return f"❌ Error: {e}"
+
+    async def _handle_a2a_command(self, args: list[str]) -> str:
+        """Handle A2A (Agent-to-Agent) commands."""
+        try:
+            from src.config import get_settings
+            settings = get_settings()
+
+            if not settings.a2a_enabled:
+                return "❌ **A2A integration is disabled**\n\nContact your administrator to enable Agent-to-Agent integration."
+
+            if not args or args[0] == "help":
+                return """🤖 **Agent-to-Agent (A2A) Commands**
+
+**List Agents:**
+• `/a2a agents` - Show all registered agents
+• `/a2a agents <capability>` - Filter by capability
+
+**Agent Info:**
+• `/a2a agent <agent-id>` - Get detailed agent information
+
+**Delegate Tasks:**
+• `@agent-name <task description>` - Natural language delegation
+• `@capability: param1=val1, param2=val2` - Structured delegation
+
+**Examples:**
+```
+/a2a agents kubernetes
+@kubernetes.scale: namespace=prod, deployment=api, replicas=5
+@k8s-operator scale my-app to 3 replicas
+```
+
+**Status:**
+• `/a2a status` - Show A2A system status
+"""
+
+            elif args[0] == "agents":
+                capability_filter = args[1] if len(args) > 1 else None
+                from src.database import get_db_session
+                from src.services.agent_registry import get_agent_registry
+
+                registry = get_agent_registry()
+                async with get_db_session() as db:
+                    agents = await registry.list_agents(capability=capability_filter, db=db)
+
+                if not agents:
+                    return f"❌ No agents found with capability: `{capability_filter}`" if capability_filter else "❌ No agents registered yet."
+
+                lines = [f"🤖 **Registered Agents** ({len(agents)} total)\n"]
+                for agent in agents:
+                    status_emoji = {"online": "🟢", "offline": "🔴", "degraded": "🟡", "unknown": "⚪"}.get(
+                        agent.status.value if hasattr(agent.status, 'value') else agent.status, "⚪"
+                    )
+                    cap_count = len(agent.capabilities)
+                    cap_names = [c.name for c in agent.capabilities[:3]]
+                    cap_display = ", ".join(cap_names)
+                    if cap_count > 3:
+                        cap_display += f", +{cap_count - 3} more"
+                    lines.append(
+                        f"{status_emoji} **{agent.name}** (`{agent.agent_id}`)\n"
+                        f"   • Capabilities: {cap_display}\n"
+                        f"   • Status: {agent.status.value if hasattr(agent.status, 'value') else agent.status}\n"
+                    )
+                return "\n".join(lines)
+
+            elif args[0] == "agent" and len(args) > 1:
+                agent_id = args[1]
+                from src.database import get_db_session
+                from src.services.agent_registry import get_agent_registry
+
+                registry = get_agent_registry()
+                async with get_db_session() as db:
+                    agent = await registry.get_agent(agent_id=agent_id, db=db)
+
+                if not agent:
+                    return f"❌ Agent not found: `{agent_id}`"
+
+                lines = [
+                    f"🤖 **{agent.name}**\n",
+                    f"**Agent ID:** `{agent.agent_id}`",
+                    f"**URL:** {agent.url}",
+                    f"**Status:** {agent.status.value if hasattr(agent.status, 'value') else agent.status}",
+                    f"**Version:** {agent.version}",
+                    f"**Registered:** {agent.registered_at.strftime('%Y-%m-%d %H:%M')}",
+                    f"**Last Seen:** {agent.last_seen.strftime('%Y-%m-%d %H:%M')}",
+                    f"\n**Capabilities ({len(agent.capabilities)}):**\n"
+                ]
+                for cap in agent.capabilities:
+                    lines.append(f"• `{cap.name}` - {cap.description}")
+                    if cap.tags:
+                        lines.append(f"  Tags: {', '.join(cap.tags)}")
+                return "\n".join(lines)
+
+            elif args[0] == "status":
+                import httpx
+                try:
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get("http://localhost:8000/health/a2a")
+                        if response.status_code == 200:
+                            data = response.json()
+                            caps_display = "\n".join(f"• `{c}`" for c in data.get('capabilities', [])[:10])
+                            return (
+                                f"🤖 **A2A System Status**\n\n"
+                                f"**Enabled:** {'✅ Yes' if data.get('enabled') else '❌ No'}\n"
+                                f"**Registered Agents:** {data.get('registered_agents', 0)}\n"
+                                f"**Online Agents:** {data.get('online_agents', 0)}\n"
+                                f"**Available Capabilities:** {len(data.get('capabilities', []))}\n"
+                                f"**Recent Delegations (24h):** {data.get('recent_delegations_24h', 0)}\n\n"
+                                f"**Capabilities:**\n{caps_display}"
+                            )
+                        else:
+                            return f"❌ Failed to get A2A status: HTTP {response.status_code}"
+                except Exception as status_err:
+                    return f"❌ Failed to get A2A status: {status_err}"
+            else:
+                return "❌ Unknown A2A command. Try `/a2a help` for available commands."
+
+        except Exception as e:
+            logger.error("a2a_command_error", error=str(e))
             return f"❌ Error: {e}"
 
     async def _process_message(self, message: ChannelMessage) -> None:

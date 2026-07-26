@@ -23,6 +23,11 @@ class RuleCondition(StrEnum):
     HIGH_RESTART_COUNT = "high_restart_count"
     ALERTMANAGER_FIRING = "alertmanager_firing"
     PROMETHEUS_THRESHOLD = "prometheus_threshold"
+    # API Backend monitoring conditions
+    API_BACKEND_DOWN = "api_backend_down"
+    API_HIGH_LATENCY = "api_high_latency"
+    API_HIGH_ERROR_RATE = "api_high_error_rate"
+    API_SSL_EXPIRING = "api_ssl_expiring"
 
 
 @dataclass
@@ -32,6 +37,7 @@ class Rule:
     id: str
     name: str
     condition: RuleCondition
+    endpoint_filter: str | None = None  # regex pattern for API backend endpoint names
     playbook_id: str
     enabled: bool = True
     # Optional filters: only trigger when labels/namespace match
@@ -52,6 +58,11 @@ class Rule:
             if not re.search(self.namespace_filter, event["namespace"]):
                 return False
         if self.severity_filter and event.get("severity") != self.severity_filter:
+        if self.endpoint_filter and event.get("endpoint_name"):
+            import re
+
+            if not re.search(self.endpoint_filter, event["endpoint_name"]):
+                return False
             return False
         return True
 
@@ -91,6 +102,28 @@ class RuleEngine:
             severity_filter="critical",
         ),
         Rule(
+        # API Backend monitoring rules
+        Rule(
+            id="rule-005",
+            name="API Backend Down Investigation",
+            condition=RuleCondition.API_BACKEND_DOWN,
+            playbook_id="api_backend_down_remediation",
+            severity_filter="critical",
+        ),
+        Rule(
+            id="rule-006",
+            name="API High Latency Investigation",
+            condition=RuleCondition.API_HIGH_LATENCY,
+            playbook_id="api_high_latency_investigation",
+            severity_filter="warning",
+        ),
+        Rule(
+            id="rule-007",
+            name="API High Error Rate Investigation",
+            condition=RuleCondition.API_HIGH_ERROR_RATE,
+            playbook_id="api_error_rate_investigation",
+            severity_filter="critical",
+        ),
             id="rule-004",
             name="Replication Failure Rollback",
             condition=RuleCondition.REPLICATION_FAILURE,

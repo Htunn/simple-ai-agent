@@ -276,6 +276,108 @@ class PlaybookRegistry:
             )
         )
 
+        # ── API Backend Remediation Playbooks ─────────────────────────────────
+
+        self.register(
+            Playbook(
+                id="api_backend_down_remediation",
+                name="API Backend Down Investigation",
+                description="Diagnose and remediate an unreachable API backend",
+                steps=[
+                    PlaybookStep(
+                        name="DNS Lookup",
+                        description="Verify DNS resolution for the API endpoint",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_dns_lookup",
+                        tool_params_template={
+                            "hostname": "{url}",
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Curl Test",
+                        description="Attempt direct HTTP request to API endpoint",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_curl_test",
+                        tool_params_template={
+                            "url": "{url}",
+                            "timeout": 10,
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Check SSL Certificate",
+                        description="Verify SSL certificate is valid and not expired",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_ssl_check",
+                        tool_params_template={
+                            "url": "{url}",
+                        },
+                    ),
+                ],
+            )
+        )
+
+        self.register(
+            Playbook(
+                id="api_high_latency_investigation",
+                name="API High Latency Investigation",
+                description="Investigate causes of elevated API response times",
+                steps=[
+                    PlaybookStep(
+                        name="Measure Current Latency",
+                        description="Run multiple test requests to measure current latency",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_curl_test",
+                        tool_params_template={
+                            "url": "{url}",
+                            "timeout": 30,
+                            "repeat": 5,
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Check Network Path",
+                        description="Trace route to API endpoint to identify network bottlenecks",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_traceroute",
+                        tool_params_template={
+                            "hostname": "{url}",
+                        },
+                    ),
+                ],
+            )
+        )
+
+        self.register(
+            Playbook(
+                id="api_error_rate_investigation",
+                name="API Error Rate Investigation",
+                description="Investigate elevated error rates from API backend",
+                steps=[
+                    PlaybookStep(
+                        name="Fetch Recent Errors",
+                        description="Retrieve sample error responses from API",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_curl_test",
+                        tool_params_template={
+                            "url": "{url}",
+                            "timeout": 10,
+                            "verbose": True,
+                        },
+                    ),
+                    PlaybookStep(
+                        name="Check API Status Page",
+                        description="Query API provider status page for incidents",
+                        risk_level=RiskLevel.LOW,
+                        tool_name="api_curl_test",
+                        tool_params_template={
+                            "url": "{status_page_url}",
+                            "timeout": 10,
+                        },
+                        success_pattern=r"(operational|all systems)",
+                    ),
+                ],
+            )
+        )
+
     def register(self, playbook: Playbook) -> None:
         self._playbooks[playbook.id] = playbook
         logger.debug("playbook_registered", playbook_id=playbook.id, name=playbook.name)

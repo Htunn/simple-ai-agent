@@ -306,3 +306,91 @@ class ApprovalAuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<ApprovalAuditLog {self.approval_id[:8]} {self.event_type} by {self.actor or self.requested_by}>"
+
+
+# ── Agent-to-Agent (A2A) Models ───────────────────────────────────────────────
+
+
+class Agent(Base):
+    """Registered AI agent for A2A integration."""
+
+    __tablename__ = "agents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    capabilities: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="unknown", index=True)
+    api_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    webhook_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    version: Mapped[str] = mapped_column(String(20), nullable=False, server_default="1.0.0")
+    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    registered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+    def __repr__(self) -> str:
+        return f"<Agent {self.agent_id} {self.status}>"
+
+
+class AgentTask(Base):
+    """Delegated task to another agent."""
+
+    __tablename__ = "agent_tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    from_agent_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    to_agent_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    capability: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    parameters: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="queued", index=True)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    async_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    callback_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, server_default="30")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        Index("idx_agent_tasks_status_created", "status", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AgentTask {self.task_id} {self.status}>"
+
+
+class AgentMessage(Base):
+    """A2A communication message log."""
+
+    __tablename__ = "agent_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    from_agent_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    to_agent_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    task_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    message_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+    __table_args__ = (
+        Index("idx_agent_messages_task_timestamp", "task_id", "timestamp"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AgentMessage {self.message_type} {self.from_agent_id}->{self.to_agent_id}>"

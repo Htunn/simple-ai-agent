@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiops-orchestrator"
-version = "0.4.0"
-description = "Production-ready multi-channel AI agent with AIOps, Kubernetes management, and MCP integration"
+version = "2.0.0"
+description = "Production-ready multi-channel AI agent with AIOps, Kubernetes management, A2A multi-agent orchestration, and MCP integration"
 authors = [{name = "AIOps Orchestrator Contributors"}]
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 keywords = ["ai", "agent", "kubernetes", "aiops", "telegram", "slack", "mcp", "fastapi"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",

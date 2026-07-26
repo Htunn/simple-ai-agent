@@ -1,0 +1,237 @@
+# Agent-to-Agent (A2A) Registry Configuration
+#
+# This file defines pre-configured agents that this AIOps Orchestrator
+# can delegate tasks to. Agents can also register dynamically via API.
+#
+# Schema:
+#   - agent_id: Unique identifier for the agent
+#   - name: Human-readable name
+#   - url: Base URL for the agent's A2A API
+#   - capabilities: List of capabilities the agent provides
+#       - name: Capability name (e.g., "kubernetes.scale")
+#       - description: What this capability does
+#       - parameters_schema: JSON Schema for required parameters (optional)
+#       - examples: Example invocations (optional)
+#       - tags: Searchable tags (optional)
+#   - api_key: Optional API key for authentication (use ${ENV_VAR} for secrets)
+#   - webhook_url: Optional webhook URL for async task callbacks
+#   - version: Agent API version
+#   - metadata: Additional agent-specific metadata
+
+agents:
+  # Example: Kubernetes Operations Agent
+  - agent_id: k8s-operator-agent
+    name: Kubernetes Operations Agent
+    url: ${K8S_OPERATOR_URL:-http://k8s-operator:8080}
+    capabilities:
+      - name: kubernetes.scale
+        description: Scale Kubernetes deployments up or down
+        parameters_schema:
+          type: object
+          required:
+            - namespace
+            - deployment
+            - replicas
+          properties:
+            namespace:
+              type: string
+              description: Kubernetes namespace
+            deployment:
+              type: string
+              description: Deployment name
+            replicas:
+              type: integer
+              description: Target replica count
+              minimum: 0
+        examples:
+          - namespace: production
+            deployment: api-server
+            replicas: 5
+        tags:
+          - kubernetes
+          - scaling
+          - deployments
+
+      - name: kubernetes.restart
+        description: Restart Kubernetes pods by deleting them
+        parameters_schema:
+          type: object
+          required:
+            - namespace
+            - deployment
+          properties:
+            namespace:
+              type: string
+            deployment:
+              type: string
+        tags:
+          - kubernetes
+          - pods
+          - restart
+
+    api_key: ${K8S_OPERATOR_API_KEY}
+    webhook_url: ${K8S_OPERATOR_WEBHOOK_URL}
+    version: "1.0.0"
+    metadata:
+      environment: production
+      owner: platform-team
+
+  # Example: Database Operations Agent
+  - agent_id: db-ops-agent
+    name: Database Operations Agent
+    url: ${DB_OPS_URL:-http://db-ops:8080}
+    capabilities:
+      - name: database.query
+        description: Execute read-only database queries
+        parameters_schema:
+          type: object
+          required:
+            - database
+            - query
+          properties:
+            database:
+              type: string
+              description: Database identifier
+            query:
+              type: string
+              description: SQL query (SELECT only)
+        tags:
+          - database
+          - query
+          - troubleshooting
+
+      - name: database.slow_queries
+        description: Analyze slow queries and provide optimization suggestions
+        parameters_schema:
+          type: object
+          required:
+            - database
+          properties:
+            database:
+              type: string
+            threshold_ms:
+              type: integer
+              description: Minimum query duration in milliseconds
+              default: 1000
+        tags:
+          - database
+          - performance
+          - optimization
+
+    api_key: ${DB_OPS_API_KEY}
+    version: "1.0.0"
+    metadata:
+      environment: production
+      owner: database-team
+
+  # Example: Log Analysis Agent
+  - agent_id: log-analyzer-agent
+    name: Log Analysis Agent
+    url: ${LOG_ANALYZER_URL:-http://log-analyzer:8080}
+    capabilities:
+      - name: logs.search
+        description: Search application logs with filters
+        parameters_schema:
+          type: object
+          required:
+            - service
+          properties:
+            service:
+              type: string
+              description: Service name
+            level:
+              type: string
+              description: Log level filter (DEBUG, INFO, WARNING, ERROR)
+            since:
+              type: string
+              description: Time range start (ISO 8601)
+            until:
+              type: string
+              description: Time range end (ISO 8601)
+            query:
+              type: string
+              description: Search query
+        tags:
+          - logs
+          - search
+          - troubleshooting
+
+      - name: logs.error_patterns
+        description: Detect common error patterns and anomalies in logs
+        parameters_schema:
+          type: object
+          required:
+            - service
+            - time_range_hours
+          properties:
+            service:
+              type: string
+            time_range_hours:
+              type: integer
+              minimum: 1
+        tags:
+          - logs
+          - errors
+          - anomaly-detection
+
+    api_key: ${LOG_ANALYZER_API_KEY}
+    version: "1.0.0"
+    metadata:
+      environment: production
+      owner: observability-team
+
+  # Example: Notification Agent
+  - agent_id: notification-agent
+    name: Notification Agent
+    url: ${NOTIFICATION_URL:-http://notification:8080}
+    capabilities:
+      - name: notify.send
+        description: Send notifications via multiple channels (Slack, Email, PagerDuty)
+        parameters_schema:
+          type: object
+          required:
+            - channel
+            - message
+          properties:
+            channel:
+              type: string
+              description: Notification channel (slack, email, pagerduty)
+            message:
+              type: string
+              description: Message content
+            severity:
+              type: string
+              description: Severity level (info, warning, critical)
+            recipients:
+              type: array
+              items:
+                type: string
+              description: List of recipient IDs
+        tags:
+          - notification
+          - alerting
+          - communication
+
+    api_key: ${NOTIFICATION_API_KEY}
+    version: "1.0.0"
+    metadata:
+      environment: production
+      owner: platform-team
+
+# Global A2A Settings
+settings:
+  # Enable automatic agent health checks
+  health_check_enabled: true
+  health_check_interval_seconds: 60
+
+  # Stale agent threshold (mark agents as offline if not seen for this duration)
+  stale_threshold_hours: 24
+
+  # Auto-register agents on startup
+  auto_register_on_startup: true
+
+  # Default task timeout for delegations (seconds)
+  default_task_timeout_seconds: 30
+
+  # Maximum concurrent delegations
+  max_concurrent_delegations: 10

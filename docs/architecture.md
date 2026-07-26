@@ -414,3 +414,423 @@ The watchloop tracks `_known_issues` (a dict keyed by `resource_kind/namespace/n
 - [Python Telegram Bot](https://python-telegram-bot.readthedocs.io/)
 - [GitHub Models](https://github.com/marketplace/models)
 - [SQLAlchemy Async](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)
+
+---
+
+## Agent-to-Agent (A2A) Architecture
+
+### Overview
+
+The A2A layer enables multi-agent orchestration by providing a standardized protocol for agent registration, discovery, and task delegation. This allows the AIOps Orchestrator to coordinate with specialized external agents for complex workflows.
+
+### A2A Components
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AIOps Orchestrator                        │
+│  ┌──────────────┐  ┌───────────────┐  ┌─────────────────┐  │
+│  │Message Handler│──│Task Delegator │──│Agent Registry   │  │
+│  └──────┬───────┘  └───────┬───────┘  └─────────┬───────┘  │
+│         │                   │                     │          │
+│  ┌──────▼───────┐  ┌───────▼───────┐  ┌─────────▼───────┐  │
+│  │@agent parser │  │Capability     │  │PostgreSQL       │  │
+│  │(NL & struct) │  │Matcher        │  │+ Redis Cache    │  │
+│  └──────────────┘  └───────┬───────┘  └─────────────────┘  │
+│                             │                                │
+│                     ┌───────▼───────┐                        │
+│                     │A2A Client     │                        │
+│                     │(HTTP + JWT)   │                        │
+│                     └───────┬───────┘                        │
+└─────────────────────────────┼─────────────────────────────────┘
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+        ┌───────────▼──────────┐  ┌─────▼──────────────┐
+        │External Agent 1      │  │External Agent 2    │
+        │(K8s Operator)        │  │(Log Analyzer)      │
+        │                      │  │                    │
+        │Capabilities:         │  │Capabilities:       │
+        │• kubernetes.scale    │  │• logs.search       │
+        │• kubernetes.restart  │  │• logs.patterns     │
+        └──────────────────────┘  └────────────────────┘
+```
+
+### A2A Data Flow
+
+#### 1. Agent Registration
+
+```
+External Agent           A2A API            Agent Registry       Database
+      │                    │                      │                  │
+      ├─POST /a2a/register─►                     │                  │
+      │  {agent_id, name,  │                     │                  │
+      │   capabilities[],  │                     │                  │
+      │   url, version}    │                     │                  │
+      │                    │                      │                  │
+      │                    ├──register_agent()───►                  │
+      │                    │                      ├──INSERT agents──►
+      │                    │                      │                  │
+      │                    │                      ◄──agent record───┤
+      │                    │                      │                  │
+      │                    │                      ├──Cache (Redis)──►
+      │                    │                      │   TTL: 5min      │
+      │                    │                      │                  │
+      │◄───201 Created─────┤                     │                  │
+      │  {agent_info,      │                     │                  │
+      │   api_key: "xyz"}  │                     │                  │
+      │  ⚠️ SAVE API KEY\!   │                     │                  │
+```
+
+#### 2. Task Delegation (Sync Mode)
+
+```
+User     Message Handler   Task Delegator   Capability Matcher   A2A Client   External Agent
+  │            │                  │                 │                │              │
+  ├─@k8s-op    │                  │                 │                │              │
+  │ scale app  │                  │                 │                │              │
+  ├────────────►                  │                 │                │              │
+  │            │                  │                 │                │              │
+  │            ├──delegate()──────►                 │                │              │
+  │            │                  │                 │                │              │
+  │            │                  ├─find_agents()───►                │              │
+  │            │                  │                 │                │              │
+  │            │                  │◄──[agents]──────┤                │              │
+  │            │                  │                 │                │              │
+  │            │                  ├──score_agents()─►                │              │
+  │            │                  │  capability +   │                │              │
+  │            │                  │  params         │                │              │
+  │            │                  │                 │                │              │
+  │            │                  │◄──ranked list───┤                │              │
+  │            │                  │  (1.0, agent1)  │                │              │
+  │            │                  │                 │                │              │
+  │            │                  ├──create_jwt()───►                │              │
+  │            │                  │                 ├─POST /delegate─►              │
+  │            │                  │                 │  + JWT token   │              │
+  │            │                  │                 │                │              │
+  │            │                  │                 │                ◄──execute────┤
+  │            │                  │                 │                │  kubectl...  │
+  │            │                  │                 │                │              │
+  │            │                  │                 │◄──200 OK───────┤              │
+  │            │                  │                 │  {result}      │              │
+  │            │                  │                 │                │              │
+  │            │                  │◄──response──────┤                │              │
+  │            │                  │                 │                │              │
+  │            │◄──result─────────┤                 │                │              │
+  │            │                  │                 │                │              │
+  │◄──response─┤                  │                 │                │              │
+  │ ✅ Scaled   │                  │                 │                │              │
+```
+
+#### 3. Task Delegation (Async Mode with Webhook)
+
+```
+User   Message Handler   Task Delegator   A2A Client   External Agent   Webhook Endpoint
+  │           │                 │              │              │                │
+  ├─@log-analyzer             │              │              │                │
+  │  find errors (24h)         │              │              │                │
+  ├────────────►               │              │              │                │
+  │           │                │              │              │                │
+  │           ├─delegate()─────►              │              │                │
+  │           │  async=True    │              │              │                │
+  │           │  callback_url  │              │              │                │
+  │           │                ├─POST /delegate──────────────►                │
+  │           │                │  async:true  │              │                │
+  │           │                │  callback_url│              │                │
+  │           │                │              │              │                │
+  │           │                │              ├─queue task───┤                │
+  │           │                │              │              │                │
+  │           │                │◄──200 OK─────┤              │                │
+  │           │                │  status:queued│             │                │
+  │           │                │              │              │                │
+  │           │◄──queued───────┤              │              │                │
+  │           │                │              │              │                │
+  │◄──response─┤                │              │              │                │
+  │ ⏳ Queued   │                │              │              │                │
+  │ (will notify)              │              │              │                │
+  │           │                │              │              │                │
+  │           │                │              │   [Background processing...]  │
+  │           │                │              │              │                │
+  │           │                │              ◄─POST /webhook─────────────────┤
+  │           │                │              │              │  {task_id,     │
+  │           │                │              │              │   status:done, │
+  │           │                │              │              │   result}      │
+  │           │                │              ├──update DB───►                │
+  │           │                │              │              │                │
+  │           │                ◄──notify user─┤              │                │
+  │◄──notification             │              │              │                │
+  │ ✅ Analysis complete\!       │              │              │                │
+  │ Found 42 errors...         │              │              │                │
+```
+
+### A2A Security Model
+
+#### Authentication Flow
+
+```
+1. Registration:
+   External Agent              A2A API
+        │                        │
+        ├─POST /register─────────►
+        │ {agent_id, ...}        │
+        │                        ├─generate_api_key()
+        │                        │  (32-byte hex)
+        │                        │
+        │                        ├─hash_api_key()
+        │                        │  (SHA-256)
+        │                        │
+        │                        ├─store(hash)
+        │                        │
+        │◄─201 Created───────────┤
+        │ {api_key: "plaintext"} │
+        │ ⚠️ SAVE THIS\!           │
+
+2. Task Delegation:
+   Agent A                  A2A Auth                Agent B
+        │                     │                       │
+        ├─create_jwt()────────►                      │
+        │  (agent_id, caps)   ├─sign with HS256──────►
+        │                     │  exp: now + 1h       │
+        │                     │                       │
+        │◄─JWT token──────────┤                      │
+        │                     │                       │
+        ├─POST /delegate──────────────────────────────►
+        │  Authorization:     │                       │
+        │  Bearer <jwt>       │                       │
+        │                     │                       │
+        │                     │         ┌─────────────┤
+        │                     │         │verify_jwt()  │
+        │                     │         │• signature   │
+        │                     │         │• expiry      │
+        │                     │         │• capabilities│
+        │                     │         └─────────────►
+        │                     │                       │
+        │                     │          ┌────────────┤
+        │                     │          │execute task │
+        │                     │          └────────────►
+        │                     │                       │
+        │◄──200 OK {result}────────────────────────────┤
+```
+
+#### Authorization Model (Capability-Based Access Control)
+
+```yaml
+# Agent capabilities define what it CAN DO
+agent:
+  capabilities:
+    - name: "kubernetes.scale"
+      parameters_schema:
+        namespace: string
+        deployment: string
+        replicas: integer
+
+# JWT token includes capability claims
+jwt_payload:
+  sub: "k8s-operator-agent"
+  exp: 1706184000
+  capabilities:
+    - "kubernetes.scale"
+    - "kubernetes.restart"
+
+# Request validation checks:
+# 1. Token signature valid?
+# 2. Token not expired?
+# 3. Requested capability in token claims?
+# 4. Parameters match schema?
+```
+
+### A2A Capability Matching Algorithm
+
+```python
+def match_capability(
+    agent_capabilities: list[Capability],
+    requested_capability: str,
+    parameters: dict
+) -> float:
+    """
+    Returns score 0.0-1.0:
+    - 1.0: Exact match + valid parameters
+    - 0.8: Exact match, no schema validation
+    - 0.6: Partial name match
+    - 0.4: Tag match
+    - 0.0: No match
+    """
+    for cap in agent_capabilities:
+        if cap.name == requested_capability:
+            if cap.parameters_schema:
+                if validate_params(parameters, cap.parameters_schema):
+                    return 1.0  # Perfect match
+                else:
+                    return 0.8  # Match but invalid params
+            return 0.8  # Match, no schema
+
+        if requested_capability in cap.name or cap.name in requested_capability:
+            return 0.6  # Partial match
+
+        if any(tag in requested_capability for tag in cap.tags):
+            return 0.4  # Tag match
+
+    return 0.0  # No match
+```
+
+### A2A Performance Characteristics
+
+| Operation | Latency | Caching | Notes |
+|---|---|---|---|
+| **Agent Registration** | 50-100ms | No | One-time operation |
+| **Agent Discovery** | <5ms (cached) | 5min TTL | Redis cache hit |
+| **Agent Discovery** | 20-50ms (miss) | N/A | PostgreSQL query |
+| **Capability Matching** | <1ms | In-memory | Scoring algorithm |
+| **JWT Creation** | <1ms | No | In-memory signing |
+| **JWT Verification** | <1ms | No | In-memory validation |
+| **Sync Delegation** | 1-30s | No | Depends on agent task |
+| **Async Delegation** | 50-200ms | No | Returns immediately |
+| **Webhook Delivery** | 100-500ms | Retries 3x | Exponential backoff |
+
+### A2A Failure Modes & Handling
+
+#### 1. No Capable Agent Found
+
+```
+Error: A2ACapabilityNotFoundError
+Reason: No agents registered with requested capability
+Handling:
+  - Return error to user with available capabilities
+  - Suggest similar capabilities (fuzzy matching)
+  - Log for admin review
+```
+
+#### 2. Task Timeout
+
+```
+Error: A2ATimeoutError
+Reason: Agent did not respond within timeout window
+Handling:
+  - Sync mode: Return timeout error after 60s (default)
+  - Async mode: Task remains "queued" in database
+  - User can check status with /a2a status
+  - Metrics: aiagent_a2a_task_duration_seconds
+```
+
+#### 3. Agent Authentication Failure
+
+```
+Error: A2AAuthenticationError
+Reason: Invalid/expired JWT or missing capabilities
+Handling:
+  - Return 401 Unauthorized
+  - Increment aiagent_a2a_auth_failures_total{reason="invalid_token"}
+  - Agent must re-authenticate
+```
+
+#### 4. Webhook Delivery Failure
+
+```
+Error: A2AWebhookDeliveryError
+Reason: Callback URL unreachable or rejected
+Handling:
+  - Retry 3 times with exponential backoff (1s, 2s, 4s)
+  - Mark task as "completed" but log delivery failure
+  - Increment aiagent_a2a_webhooks_sent_total{status="failure"}
+  - Admin notification for repeated failures
+```
+
+### A2A Observability
+
+#### Metrics
+
+```prometheus
+# Agent health
+aiagent_a2a_agents_registered 4
+aiagent_a2a_agents_online{agent_id="k8s-operator"} 1
+
+# Task lifecycle
+aiagent_a2a_tasks_delegated_total{to_agent="k8s-operator",capability="kubernetes.scale",status="completed"} 127
+aiagent_a2a_tasks_received_total{from_agent="aiops-orchestrator",capability="logs.search"} 89
+aiagent_a2a_task_duration_seconds{capability="kubernetes.scale",status="completed",quantile="0.95"} 2.5
+
+# Authentication
+aiagent_a2a_auth_failures_total{reason="invalid_token"} 3
+aiagent_a2a_auth_failures_total{reason="missing_capability"} 1
+
+# Webhooks
+aiagent_a2a_webhooks_sent_total{status="success"} 89
+aiagent_a2a_webhooks_received_total{task_status="completed"} 76
+```
+
+#### Health Endpoints
+
+```bash
+# GET /health/a2a
+{
+  "enabled": true,
+  "registered_agents": 4,
+  "online_agents": 3,
+  "capabilities": [
+    "kubernetes.scale",
+    "kubernetes.restart",
+    "logs.search",
+    "database.query"
+  ],
+  "recent_delegations_24h": 127
+}
+```
+
+### A2A Integration Points
+
+The A2A layer integrates with existing AIOps components:
+
+| Component | Integration | Purpose |
+|---|---|---|
+| **Message Handler** | `@agent` syntax detection | Natural language delegation from chat |
+| **Message Handler** | `/a2a` commands | Agent discovery and status |
+| **Metrics** | A2A-specific metrics | Monitor agent health and delegation |
+| **Health Check** | `/health/a2a` endpoint | System status reporting |
+| **PostgreSQL** | `agents`, `agent_tasks` tables | Persistence layer |
+| **Redis** | Agent registry cache | Fast lookups (5min TTL) |
+
+### A2A Extension Points
+
+#### Adding New Agents
+
+1. **External Agent Registration**:
+   ```bash
+   curl -X POST http://localhost:8000/api/a2a/register \
+     -H "Content-Type: application/json" \
+     -d '{
+       "agent_id": "my-custom-agent",
+       "name": "Custom Agent",
+       "url": "https://my-agent.example.com",
+       "capabilities": [
+         {
+           "name": "custom.action",
+           "description": "Performs custom action",
+           "parameters_schema": {...},
+           "tags": ["custom"]
+         }
+       ],
+       "version": "1.0.0"
+     }'
+   ```
+
+2. **Auto-Registration** (config/agents.yml):
+   ```yaml
+   api_backends:
+     - agent_id: "my-custom-agent"
+       name: "Custom Agent"
+       url: "${CUSTOM_AGENT_URL:-http://localhost:9000}"
+       # ... rest of config
+   ```
+
+#### Building A2A-Compatible Agents
+
+See [docs/a2a-integration.md](a2a-integration.md) for:
+- Agent implementation guide
+- REST API specification
+- Authentication setup
+- Capability definition best practices
+- Example implementations
+
+---
+
+**Last Updated**: 2026-07-26  
+**Version**: 1.0.0 (A2A Integration Added)

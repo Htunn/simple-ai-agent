@@ -25,6 +25,7 @@ class HealthResponse(BaseModel):
     kubernetes: str
     prometheus: str
     watchloop: str
+    api_backends: str
     pending_approvals: int
     active_incidents: int
 
@@ -36,6 +37,7 @@ async def health_check() -> HealthResponse:
     redis_status = "healthy"
     k8s_status = "disabled"
     prometheus_status = "disabled"
+    api_backends_status = "disabled"
     watchloop_status = "disabled"
     pending_approvals = 0
     active_incidents = 0
@@ -76,7 +78,26 @@ async def health_check() -> HealthResponse:
             else:
                 watchloop_status = "running" if wl.is_running else "stopped"
         except Exception as e:
-            watchloop_status = f"error: {str(e)}"
+         API Backends ──────────────────────────────────────────────
+    if settings.api_backend_monitoring_enabled:
+        try:
+            from src.main import get_api_watchloop
+
+            api_wl = get_api_watchloop()
+            if api_wl is None:
+                api_backends_status = "not_started"
+            else:
+                if api_wl.is_running:
+                    backend_status = api_wl.get_status()
+                    total = len(backend_status)
+                    up = sum(1 for s in backend_status.values() if s.is_up)
+                    api_backends_status = f"running ({up}/{total} up)"
+                else:
+                    api_backends_status = "stopped"
+        except Exception as e:
+            api_backends_status = f"error: {str(e)}"
+
+    # ──    watchloop_status = f"error: {str(e)}"
 
     # ── Prometheus ───────────────────────────────────────────────
     if settings.prometheus_url:
@@ -103,6 +124,7 @@ async def health_check() -> HealthResponse:
         try:
             async with engine.connect() as conn:
                 row = await conn.execute(
+        api_backends=api_backends_status,
                     text("SELECT COUNT(*) FROM incidents WHERE status = 'open'")
                 )
                 active_incidents = row.scalar() or 0
@@ -187,5 +209,142 @@ async def aiops_health() -> dict[str, Any]:
         result["pending_approvals"] = [k.split(":")[-1] for k in keys]
     except Exception:
         pass
+
+    return result
+
+
+@router.get("/health/api-backends")
+async def api_backends_health() -> dict[str, Any]:
+    """
+    Detailed API backend monitoring status.
+
+    Returns status for each monitored API endpoint including:
+    - Health (up/down)
+    - Last check time
+    - Latency metrics
+    - Error rate
+    - Consecutive failures
+    """
+    result: dict[str, Any] = {
+        "monitoring_enabled": settings.api_backend_monitoring_enabled,
+        "backends": {},
+        "summary": {
+            "total": 0,
+            "up": 0,
+            "down": 0,
+            "degraded": 0,
+        },
+    }
+
+    if not settings.api_backend_monitoring_enabled:
+        return result
+
+    try:
+        from src.main import get_api_watchloop
+
+        api_wl = get_api_watchloop()
+        if api_wl and api_wl.is_running:
+            backend_status = api_wl.get_status()
+            result["summary"]["total"] = len(backend_status)
+
+            for name, status in backend_status.items():
+                is_degraded = (
+                    status.error_rate > 0.05
+                    or (status.last_latency_ms or 0) > 1000
+                    or status.consecutive_failures > 0
+                )
+
+                if status.is_up:
+                    if is_degraded:
+                        result["summary"]["degraded"] += 1
+                    else:
+                        result["summary"]["up"] += 1
+                else:
+                    result["summary"]["down"] += 1
+
+                result["backends"][name] = {
+                    "url": status.url,
+                    "is_up": status.is_up,
+                    "status": "up" if status.is_up and not is_degraded else ("degraded" if status.is_up else "down"),
+                    "last_check_time": status.last_check_time,
+                    "last_latency_ms": status.last_latency_ms,
+                    "consecutive_failures": status.consecutive_failures,
+                    "error_rate": round(status.error_rate, 4),
+                    "last_error": status.last_error,
+                }
+        else:
+            result["monitoring_enabled"] = False
+            result["reason"] = "Watchloop not running"
+
+    except Exception as e:
+        logger.debug("api_backends_health_error", error=str(e))
+        result["error"] = str(e)
+
+    return result
+
+
+
+@router.get("/health/a2a")
+async def a2a_health() -> dict[str, Any]:
+    """
+    Detailed A2A (Agent-to-Agent) status.
+
+    Returns:
+        - registered_agents: Total number of registered agents
+        - online_agents: Number of online agents
+        - capabilities: List of available capabilities
+        - recent_delegations: Count of recent task delegations
+    """
+    result: dict[str, Any] = {
+        "enabled": settings.a2a_enabled,
+        "registered_agents": 0,
+        "online_agents": 0,
+        "capabilities": [],
+        "recent_delegations_24h": 0,
+    }
+
+    if not settings.a2a_enabled:
+        return result
+
+    try:
+        from src.main import get_agent_registry
+        from src.database.postgres import get_db_session
+        from src.models.agent import AgentStatus
+        from sqlalchemy import select, func
+        from src.database.models import AgentTask
+        from datetime import datetime, timedelta, UTC
+
+        registry = get_agent_registry()
+        if registry is None:
+            result["error"] = "Agent registry not initialized"
+            return result
+
+        async with get_db_session() as db:
+            # Get all agents
+            agents = await registry.list_agents(db=db)
+            result["registered_agents"] = len(agents)
+            result["online_agents"] = sum(
+                1 for agent in agents if agent.status == AgentStatus.ONLINE
+            )
+
+            # Collect all unique capabilities
+            capabilities_set = set()
+            for agent in agents:
+                for cap in agent.capabilities:
+                    capabilities_set.add(cap.name)
+            result["capabilities"] = sorted(list(capabilities_set))
+
+            # Count recent delegations (last 24 hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=24)
+            recent_count_result = await db.execute(
+                select(func.count(AgentTask.id)).where(
+                    AgentTask.created_at >= cutoff
+                )
+            )
+            result["recent_delegations_24h"] = recent_count_result.scalar() or 0
+
+    except Exception as e:
+        logger.error("a2a_health_check_failed", error=str(e))
+        result["error"] = str(e)
 
     return result

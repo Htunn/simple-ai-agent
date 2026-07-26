@@ -99,7 +99,55 @@ groups:
         annotations:
           summary: "Node {{ $labels.node }} is NotReady"
           description: "Kubernetes node {{ $labels.node }} has been in NotReady state for more than 5 minutes."
+  # ── API Backend Monitoring ──────────────────────────────────────
+  - name: api_backend_monitoring
+    interval: 30s
+    rules:
+      - alert: ApiBackendDown
+        expr: aiagent_api_backend_up{endpoint!=""} == 0
+        for: 2m
+        labels:
+          severity: critical
+          event_type: api_backend_down
+        annotations:
+          summary: "API backend {{ $labels.endpoint }} is down"
+          description: "API backend {{ $labels.endpoint }} has been unreachable for more than 2 minutes."
 
+      - alert: ApiBackendHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(aiagent_api_backend_latency_seconds_bucket{endpoint!=""}[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          event_type: api_high_latency
+        annotations:
+          summary: "API backend {{ $labels.endpoint }} has high latency"
+          description: "p95 latency for {{ $labels.endpoint }} is {{ $value | humanizeDuration }} over the last 5 minutes."
+
+      - alert: ApiBackendHighErrorRate
+        expr: |
+          sum by (endpoint) (rate(aiagent_api_backend_errors_total{status_code=~"5.."}[5m]))
+          / sum by (endpoint) (rate(aiagent_api_backend_checks_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          event_type: api_high_error_rate
+        annotations:
+          summary: "API backend {{ $labels.endpoint }} has high error rate"
+          description: "Error rate for {{ $labels.endpoint }} is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: ApiBackendSlowChecks
+        expr: |
+          rate(aiagent_api_backend_checks_total{status="timeout"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API backend {{ $labels.endpoint }} experiencing frequent timeouts"
+          description: "{{ $labels.endpoint }} health checks are timing out frequently."
       - alert: NodeMemoryPressure
         expr: |
           kube_node_status_condition{condition="MemoryPressure", status="true"} == 1
