@@ -246,6 +246,104 @@ class K8sStateSnapshot(Base):
     )
 
 
+class PlatformConfig(Base):
+    """Platform connection configuration for multi-cloud infrastructure."""
+
+    __tablename__ = "platform_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    platform_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True, comment="nutanix, vmware, openshift"
+    )
+    endpoint: Mapped[str] = mapped_column(String(500), nullable=False)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Password stored encrypted (placeholder - use vault/secrets manager in production)
+    password_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verify_ssl: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    timeout: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    max_retries: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    extra_config: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    last_health_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    health_status: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, comment="healthy, degraded, unreachable"
+    )
+
+    def __repr__(self) -> str:
+        return f"<PlatformConfig {self.name} ({self.platform_type})>"
+
+
+class PlatformHealthHistory(Base):
+    """Historical health check data for platforms."""
+
+    __tablename__ = "platform_health_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    platform_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    response_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+    __table_args__ = (Index("ix_platform_health_platform_time", "platform_id", "checked_at"),)
+
+    def __repr__(self) -> str:
+        return f"<PlatformHealthHistory {self.platform_id} {self.status}>"
+
+
+class PlatformOperation(Base):
+    """Audit log for platform operations (VM start/stop, etc.)."""
+
+    __tablename__ = "platform_operations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    platform_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    operation_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True, comment="list_vms, start_vm, stop_vm, etc."
+    )
+    resource_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="vm, host, cluster"
+    )
+    resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resource_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    initiator: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="system", comment="system, user, ai_agent"
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    # pending | executing | completed | failed
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False, server_default="{}"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<PlatformOperation {self.operation_type} [{self.status}]>"
+
+
 class AuditLog(Base):
     """Audit trail for all destructive AIOps operations."""
 
@@ -325,7 +423,7 @@ class Agent(Base):
     api_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     webhook_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     version: Mapped[str] = mapped_column(String(20), nullable=False, server_default="1.0.0")
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    agent_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     registered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -21,6 +21,14 @@ build/
 .eggs/
 pip-wheel-metadata/
 
+# ── Dev / Mock Servers ───────────────────────────────────────────────────────
+# Allow dev/ directory but ignore virtual environments within it
+dev/**/.venv/
+dev/**/venv/
+dev/**/__pycache__/
+dev/**/*.pyc
+dev/
+
 # ── Type checking & linting caches ───────────────────────────────────────────
 .mypy_cache/
 .ruff_cache/

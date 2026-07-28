@@ -58,16 +58,21 @@ Orchestrates business logic and coordinates between layers.
 Contains core business logic and AI integration.
 
 **Components:**
-- `GitHubModelsClient` - AI model interaction
+- `AIRouter` - Multi-backend LLM routing (4 backends: GitHub Models, Gemini, vLLM, Ollama)
+- `GitHubModelsClient` - GitHub Models API integration (default backend)
+- `GeminiClient` - Google Gemini API integration
+- `VLLMClient` - Self-hosted vLLM server integration
+- `OllamaClient` - Local Ollama server integration
 - `ModelSelector` - Model preference resolution
 - `ContextBuilder` - Conversation context construction
 - `PromptManager` - System prompt templates
 
 **Responsibilities:**
-- AI model selection logic
+- AI backend selection logic (model name pattern matching)
+- Model prefix stripping (vllm:, ollama:)
 - Conversation context building
 - Prompt engineering
-- Response generation
+- Response generation (streaming and non-streaming)
 
 ### Infrastructure Layer (Database & Cache)
 Manages data persistence and caching.
@@ -126,13 +131,22 @@ Provides HTTP endpoints for webhooks and monitoring.
 ### Model Selection Priority
 
 ```
-1. Conversation.model_override (per-conversation setting)
+1. Conversation.model_override (per-conversation setting via /model command)
    ↓ (if not set)
 2. User.preferred_model (user preference)
    ↓ (if not set)
 3. ChannelConfig.default_model (channel default)
    ↓ (if not set)
 4. Settings.default_model (system default)
+```
+
+### Backend Routing Logic
+
+```
+1. Model starts with "gemini-" → GeminiClient
+2. Model contains "/" or starts with "vllm:" → VLLMClient
+3. Model matches Ollama patterns or starts with "ollama:" → OllamaClient
+4. Everything else → GitHubModelsClient (default)
 ```
 
 ## Key Design Decisions

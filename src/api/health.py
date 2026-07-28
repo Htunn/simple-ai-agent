@@ -78,7 +78,10 @@ async def health_check() -> HealthResponse:
             else:
                 watchloop_status = "running" if wl.is_running else "stopped"
         except Exception as e:
-         API Backends ──────────────────────────────────────────────
+            logger.error(f"Failed to check platform watchloop: {e}")
+            watchloop_status = "error"
+
+    # API Backends
     if settings.api_backend_monitoring_enabled:
         try:
             from src.main import get_api_watchloop
@@ -124,7 +127,6 @@ async def health_check() -> HealthResponse:
         try:
             async with engine.connect() as conn:
                 row = await conn.execute(
-        api_backends=api_backends_status,
                     text("SELECT COUNT(*) FROM incidents WHERE status = 'open'")
                 )
                 active_incidents = row.scalar() or 0
@@ -145,6 +147,7 @@ async def health_check() -> HealthResponse:
         kubernetes=k8s_status,
         prometheus=prometheus_status,
         watchloop=watchloop_status,
+        api_backends=api_backends_status,
         pending_approvals=pending_approvals,
         active_incidents=active_incidents,
     )

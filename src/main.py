@@ -215,9 +215,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             logger.warning("k8s_watchloop_init_failed", error=str(e))
             watchloop = None
-──────────────────────────────────────────────────────────────
+
     # AIOps: API Backend watch-loop (external service health monitoring)
-    # ──────────────────────────────────────────────────────────────
     if settings.api_backend_monitoring_enabled:
         try:
             from src.config import load_api_backend_configs
@@ -231,12 +230,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 api_watchloop = ApiBackendWatchLoop(
                     backends=api_backends,
                     event_callback=_on_cluster_event,  # Same callback handles both K8s and API events
-           API Backend watch-loop
-    if api_watchloop:
-        await api_watchloop.stop()
-        logger.info("api_watchloop_stopped")
-
-    # Stop      )
+                )
                 asyncio.create_task(api_watchloop.start())
                 logger.info(
                     "api_watchloop_started",
@@ -303,20 +297,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                                     "a2a_agent_already_registered",
                                     agent_id=agent_config["agent_id"],
                                 )
-# Include A2A router if enabled
-if settings.a2a_enabled:
-    app.include_router(a2a_router)
-    logger.info("a2a_router_included")
-
-
                         except Exception as agent_err:
                             logger.warning(
-                        
-
-
-def get_agent_registry() -> Any:
-    """Return current agent registry instance (for health checks)."""
-    return agent_registry        "a2a_agent_registration_failed",
+                                "a2a_agent_registration_failed",
                                 agent_id=agent_config.get("agent_id", "unknown"),
                                 error=str(agent_err),
                             )
@@ -327,7 +310,6 @@ def get_agent_registry() -> Any:
             logger.warning("a2a_init_failed", error=str(e))
             agent_registry = None
 
-    # 
     # Start all channel adapters
     logger.info("starting_channel_adapters")
     asyncio.create_task(router.start_all())
@@ -362,6 +344,11 @@ def get_agent_registry() -> Any:
     await close_redis()
 
     logger.info("application_shutdown_complete")
+
+
+def get_agent_registry() -> Any:
+    """Return current agent registry instance (for health checks)."""
+    return agent_registry
 
 
 # Create FastAPI application
