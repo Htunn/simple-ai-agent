@@ -37,8 +37,8 @@ class Rule:
     id: str
     name: str
     condition: RuleCondition
-    endpoint_filter: str | None = None  # regex pattern for API backend endpoint names
     playbook_id: str
+    endpoint_filter: str | None = None  # regex pattern for API backend endpoint names
     enabled: bool = True
     # Optional filters: only trigger when labels/namespace match
     namespace_filter: str | None = None  # regex pattern
@@ -57,7 +57,10 @@ class Rule:
 
             if not re.search(self.namespace_filter, event["namespace"]):
                 return False
+
         if self.severity_filter and event.get("severity") != self.severity_filter:
+            return False
+
         if self.endpoint_filter and event.get("endpoint_name"):
             import re
 
@@ -102,6 +105,12 @@ class RuleEngine:
             severity_filter="critical",
         ),
         Rule(
+            id="rule-004",
+            name="Replication Failure Rollback",
+            condition=RuleCondition.REPLICATION_FAILURE,
+            playbook_id="deployment_rollback",
+            severity_filter="critical",
+        ),
         # API Backend monitoring rules
         Rule(
             id="rule-005",
@@ -122,12 +131,6 @@ class RuleEngine:
             name="API High Error Rate Investigation",
             condition=RuleCondition.API_HIGH_ERROR_RATE,
             playbook_id="api_error_rate_investigation",
-            severity_filter="critical",
-        ),
-            id="rule-004",
-            name="Replication Failure Rollback",
-            condition=RuleCondition.REPLICATION_FAILURE,
-            playbook_id="deployment_rollback",
             severity_filter="critical",
         ),
     ]

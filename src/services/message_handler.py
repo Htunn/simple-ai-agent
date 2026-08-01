@@ -13,6 +13,7 @@ from src.channels.router import MessageRouter
 from src.database import get_db_session
 from src.database.redis import RedisCache, get_redis
 from src.monitoring.tracing import get_tracer
+from src.services.platform_handler import PlatformHandler
 from src.services.session_manager import SessionManager
 
 logger = structlog.get_logger()
@@ -68,6 +69,26 @@ K8S_KEYWORDS = [
     "remediat",
 ]
 
+# Platform management keywords for detection
+PLATFORM_KEYWORDS = [
+    "vm",
+    "vms",
+    "virtual machine",
+    "virtual machines",
+    "nutanix",
+    "vmware",
+    "vcenter",
+    "esxi",
+    "prism",
+    "openshift",
+    "host",
+    "hosts",
+    "hypervisor",
+    "cluster",
+    "datacenter",
+    "infrastructure",
+]
+
 
 class MessageHandler:
     """Handles incoming messages and orchestrates responses."""
@@ -81,6 +102,7 @@ class MessageHandler:
         self.ai_client = ai_client
         self.approval_manager = None  # Set by main.py after AIOps init
         self.task_delegator = None  # Set by main.py if A2A enabled
+        self.platform_handler = PlatformHandler()  # Platform operations handler
         logger.info("message_handler_initialized")
 
     def _format_kubectl_table(self, output: str, resource_type: str = "pods") -> str:
@@ -473,6 +495,11 @@ class MessageHandler:
             # Check if it's a Kubernetes-related query
             if self._is_kubernetes_query(message.content):
                 await self._handle_kubernetes_query(message)
+                return
+
+            # Check if it's a platform management query
+            if self._is_platform_query(message.content):
+                await self._handle_platform_query(message)
                 return
 
             # Process regular message
@@ -1069,6 +1096,138 @@ class MessageHandler:
         # Cache the resolved namespace so follow-up queries (e.g. "show details") can reuse it
         await self._store_k8s_context(message.channel_type, message.user_id, namespace)
 
+    def _is_platform_query(self, message_text: str) -> bool:
+        """Check if message is related to platform management."""
+        message_lower = message_text.lower()
+        
+        # Check for platform keywords
+        if not any(keyword in message_lower for keyword in PLATFORM_KEYWORDS):
+            return False
+        
+        # Must also contain an action verb to avoid false positives
+        action_verbs = ["start", "stop", "restart", "reboot", "list", "show", "get", "status", "power"]
+        has_action = any(verb in message_lower for verb in action_verbs)
+        
+        return has_action
+
+    async def _handle_platform_query(self, message: ChannelMessage) -> None:
+        """Handle platform management queries."""
+        logger.info(
+            "platform_query_detected",
+            channel_type=message.channel_type,
+            user_id=message.user_id,
+            query=message.content,
+        )
+
+        try:
+            # Extract user ID
+            user_id = uuid.UUID(message.user_id) if message.user_id else None
+
+            # Execute platform command
+            result = await self.platform_handler.execute_command(
+                command=message.content,
+                user_id=user_id,
+            )
+
+            # Format response
+            if result.get("success"):
+                operation = result.get("operation", "operation")
+                
+                if operation == "list_vms":
+                    # Format VM list nicely
+                    total = result.get("total", 0)
+                    running = result.get("running", 0)
+                    stopped = result.get("stopped", 0)
+                    vms = result.get("vms", [])
+                    platforms = result.get("platforms_checked", [])
+                    
+                    response = f"🖥️ **Virtual Machines**\n\n"
+                    response += f"**Summary:** {total} total ({running} running, {stopped} stopped)\n"
+                    response += f"**Platforms:** {', '.join(platforms)}\n\n"
+                    
+                    if vms:
+                        # Group by platform
+                        by_platform = {}
+                        for vm in vms:
+                            platform = vm.get("platform", "unknown")
+                            if platform not in by_platform:
+                                by_platform[platform] = []
+                            by_platform[platform].append(vm)
+                        
+                        # Display grouped by platform
+                        for platform, platform_vms in by_platform.items():
+                            response += f"**{platform.upper()}:**\n"
+                            for vm in platform_vms[:10]:  # Limit to 10 per platform
+                                state_emoji = "✅" if vm.get("power_state") == "running" else "⚪"
+                                response += f"{state_emoji} **{vm['name']}**\n"
+                                response += f"   State: {vm['power_state']} | "
+                                if vm.get("cpu_count"):
+                                    response += f"CPUs: {vm['cpu_count']} | "
+                                if vm.get("memory_mb"):
+                                    response += f"Memory: {vm['memory_mb']}MB | "
+                                if vm.get("cluster"):
+                                    response += f"Cluster: {vm['cluster']}"
+                                response += "\n\n"
+                            
+                            if len(platform_vms) > 10:
+                                response += f"   _...and {len(platform_vms) - 10} more VMs_\n\n"
+                    else:
+                        response += "No VMs found.\n"
+                
+                elif operation == "list_hosts":
+                    # Format host list nicely
+                    total = result.get("total", 0)
+                    healthy = result.get("healthy", 0)
+                    unhealthy = result.get("unhealthy", 0)
+                    hosts = result.get("hosts", [])
+                    platforms = result.get("platforms_checked", [])
+                    
+                    response = f"🖥️ **Hosts/Nodes**\n\n"
+                    response += f"**Summary:** {total} total ({healthy} healthy, {unhealthy} unhealthy)\n"
+                    response += f"**Platforms:** {', '.join(platforms)}\n\n"
+                    
+                    if hosts:
+                        for host in hosts[:15]:  # Limit to 15 hosts
+                            state_emoji = "✅" if host.get("status") == "ready" else "❌"
+                            response += f"{state_emoji} **{host['name']}**\n"
+                            response += f"   Status: {host['status']} | Platform: {host['platform']}"
+                            if host.get("cpu_capacity"):
+                                response += f" | CPUs: {host['cpu_capacity']}"
+                            if host.get("memory_capacity_mb"):
+                                response += f" | Memory: {host['memory_capacity_mb']}MB"
+                            response += "\n\n"
+                        
+                        if len(hosts) > 15:
+                            response += f"_...and {len(hosts) - 15} more hosts_\n"
+                    else:
+                        response += "No hosts found.\n"
+                
+                else:
+                    # Generic success response for operations like start/stop/restart
+                    vm_name = result.get("vm_name", "VM")
+                    platform = result.get("platform", "unknown")
+                    
+                    response = f"✅ **{result.get('message', 'Operation completed successfully')}**\n\n"
+                    response += f"**Platform:** {platform}\n"
+                    response += f"**VM:** {vm_name}\n"
+                    response += f"**Operation:** {operation.replace('_', ' ').title()}\n"
+                    
+                    if result.get("force"):
+                        response += "**Mode:** Force shutdown\n"
+            
+            else:
+                # Error response
+                error = result.get("error", "Unknown error")
+                response = f"❌ **Platform operation failed**\n\n{error}"
+
+            logger.info("platform_query_processed", success=result.get("success"))
+
+        except Exception as e:
+            logger.error("platform_query_failed", error=str(e), exc_info=True)
+            response = f"❌ **Error processing platform query:** {str(e)}"
+
+        await self.router.send_message(message.channel_type, message.user_id, response)
+
     async def _persist_exchange(
         self, message: ChannelMessage, response: str, model_used: str = "system"
     ) -> None:
@@ -1213,10 +1372,10 @@ Tokens: {stats["total_tokens"]}"""
                 response = await self._handle_incident_command(command_parts[1:])
 
             elif command == "/alert":
+                response = await self._handle_alert_command(command_parts[1:])
+
             elif command == "/a2a":
                 response = await self._handle_a2a_command(args if len(command_parts) > 1 else [])
-
-                response = await self._handle_alert_command(command_parts[1:])
 
             else:
                 response = (

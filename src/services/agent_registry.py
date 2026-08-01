@@ -90,7 +90,7 @@ class AgentRegistry:
                 existing.api_key_hash = api_key_hash
                 existing.webhook_url = webhook_url
                 existing.version = version
-                existing.metadata = metadata or {}
+                existing.agent_metadata = metadata or {}
                 existing.last_seen = datetime.now(UTC)
                 logger.info("agent_updated", agent_id=agent_id, name=name)
             else:
@@ -104,7 +104,7 @@ class AgentRegistry:
                     api_key_hash=api_key_hash,
                     webhook_url=webhook_url,
                     version=version,
-                    metadata=metadata or {},
+                    agent_metadata=metadata or {},
                     registered_at=datetime.now(UTC),
                     last_seen=datetime.now(UTC),
                 )
@@ -369,7 +369,7 @@ class AgentRegistry:
             api_key_hash=agent.api_key_hash,
             webhook_url=agent.webhook_url,
             version=agent.version,
-            metadata=agent.metadata,
+            metadata=agent.agent_metadata,
             registered_at=agent.registered_at,
             last_seen=agent.last_seen,
         )

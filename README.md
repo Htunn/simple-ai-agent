@@ -1,22 +1,41 @@
 # AIOps Orchestrator
 
-> A production-ready, multi-channel AI agent for AIOps, Kubernetes management, and automated remediation — built on FastAPI with support for **GitHub Models** and **Google Gemini** LLM backends.
+> A production-ready, multi-channel AI agent for AIOps, Kubernetes management, and automated remediation — built on FastAPI with support for **GitHub Models**, **Google Gemini**, **vLLM**, and **Ollama** LLM backends.
 
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](Dockerfile)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psycopg/black)
-[![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)](RELEASE_v2.0.0.md)
-[![Status](https://img.shields.io/badge/status-Production--Stable-success.svg)](RELEASE_v2.0.0.md)
+[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](RELEASE_v2.1.0.md)
+[![Status](https://img.shields.io/badge/status-Production--Stable-success.svg)](RELEASE_v2.1.0.md)
 
 ---
 
-## 🎉 Latest Release: v2.0.0 (July 26, 2026)
+## 🎉 Latest Release: v2.1.0 (July 28, 2026)
 
-**Status**: Production Ready ✅ | **[Full Release Notes →](RELEASE_v2.0.0.md)**
+**Status**: Production Ready ✅ | **[Full Release Notes →](RELEASE_v2.1.0.md)**
 
-### Major Features
+### New in v2.1.0: Multi-Backend LLM Support 🚀
+
+Expanded LLM backend support from 2 to **4 backends**:
+- **GitHub Models** - GPT-4o, Claude-3, Llama-3 (production default)
+- **Google Gemini** - 2.5 Pro, 2.5 Flash, 2.0 Flash (Google ecosystem)
+- **vLLM** - Self-hosted high-performance inference (50-500ms latency, 100% on-premises)
+- **Ollama** - Local LLM runner for development (offline, free, privacy-focused)
+
+**Key Features**:
+- ✅ Intelligent routing by model name pattern
+- ✅ OpenAI-compatible API for vLLM and Ollama
+- ✅ Mock servers for testing without installations
+- ✅ Comprehensive documentation (2,500+ lines)
+- ✅ 100% backward compatible
+
+**Documentation**: [vLLM/Ollama Integration Guide](docs/vllm-ollama-integration.md) | [Testing Guide](docs/vllm-ollama-testing-guide.md) | [Production Readiness](docs/PRODUCTION_READINESS.md)
+
+---
+
+## 📚 Major Features (v2.0.0)
 
 #### 🤖 Agent-to-Agent (A2A) Integration
 Multi-agent orchestration platform with intelligent task delegation:
@@ -37,10 +56,6 @@ Proactive external service monitoring:
 - **Metrics**: 4 Prometheus metrics for Grafana dashboards
 - **Configuration**: Per-endpoint thresholds and check intervals
 
-### Release Statistics
-- **32 New Components** | **8,500+ Lines of Code** | **52KB Documentation**
-- **33 Unit Tests** | **8 Sequence Diagrams** | **13 New Prometheus Metrics**
-- **+7 REST Endpoints** | **+3 Database Tables** | **Production/Stable**
 
 ### Quick Start (v2.0.0)
 
@@ -88,11 +103,11 @@ curl http://localhost:8000/health/api-backends
 
 ## Overview
 
-AIOps Orchestrator connects **Telegram and Slack** to a powerful backend engine for proactive Kubernetes management and AIOps automation. It uses a dual-LLM architecture that routes requests to either **GitHub Models** (GPT-4o, Claude-3, Llama) or **Google Gemini** (2.5 Pro, 2.5 Flash, 2.0 Flash) based on user or system preference.
+AIOps Orchestrator connects **Telegram and Slack** to a powerful backend engine for proactive Kubernetes management and AIOps automation. It uses a **multi-backend LLM architecture** that routes requests to **GitHub Models** (GPT-4o, Claude-3, Llama), **Google Gemini** (2.5 Pro, 2.5 Flash, 2.0 Flash), **vLLM** (self-hosted inference), or **Ollama** (local LLM runner) based on model selection.
 
 | Capability | Technology |
 |---|---|
-| LLM inference | GitHub Models API + Google Gemini API |
+| LLM inference | GitHub Models API + Google Gemini API + vLLM + Ollama |
 | AI routing | `AIRouter` — selects backend from model prefix |
 | Chat persistence | PostgreSQL 16 (ACID, JSONB, Alembic migrations) |
 | Session caching | Redis 7 (sub-ms access, TTL expiry) |
@@ -112,12 +127,15 @@ AIOps Orchestrator connects **Telegram and Slack** to a powerful backend engine 
 
 ### AI / LLM
 
-- **Dual-backend routing** — `AIRouter` dispatches to GitHub Models or Gemini based on model name prefix
+- **Multi-backend routing (4 backends)** — `AIRouter` intelligently dispatches to GitHub Models, Gemini, vLLM, or Ollama based on model name prefix/pattern
 - **GitHub Models** — GPT-4o, GPT-4, Claude-3 Opus, Llama-3-70B via `models.inference.ai.azure.com`
 - **Google Gemini** — Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash, 1.5 Pro, 1.5 Flash
+- **vLLM** — Self-hosted high-performance inference (Llama, Mistral, Qwen, DeepSeek, etc.)
+- **Ollama** — Local LLM runner for development (llama2, mistral, codellama, phi, etc.)
 - **Model selection priority** — conversation override -> user pref -> channel default -> system default
 - **Conversation history** — stored in PostgreSQL, windowed into context
-- **Streaming-compatible** — openai-compatible SDK for GitHub Models; native Gemini async client
+- **Streaming-compatible** — OpenAI SDK for GitHub Models, vLLM, and Ollama; native async client for Gemini
+- **Flexible deployment** — Cloud (GitHub/Gemini), self-hosted (vLLM), or local (Ollama)
 
 ### Kubernetes Management (13 tools)
 - **Full CRUD** — pods, deployments, services, namespaces, nodes, events
@@ -238,7 +256,7 @@ Observability:
 +-----------------------------------------------------+
 |                 Business Logic Layer                 |  Message handler, session, K8s, approvals
 +------------------------+----------------------------+
-|        AI Layer        |       AIOps Layer          |  AIRouter (Gemini+GitHub) | watchloop, rules, RCA
+|        AI Layer        |       AIOps Layer          |  AIRouter (4 backends) | watchloop, rules, RCA
 +------------------------+----------------------------+
 |                    A2A Layer                         |  Task delegator, agent registry, capability matcher
 +-----------------------------------------------------+
@@ -348,9 +366,9 @@ See [`docs/slack-setup.md`](docs/slack-setup.md) for the full walkthrough.
 
 ## AI Backends
 
-AIOps Orchestrator supports two LLM backends, selectable per-conversation with `/model`.
+AIOps Orchestrator supports **four LLM backends**, selectable per-conversation with `/model`.
 
-### GitHub Models
+### 1. GitHub Models (Default)
 
 Accessed via `https://models.inference.ai.azure.com` using your GitHub fine-grained PAT.
 
@@ -363,7 +381,7 @@ Accessed via `https://models.inference.ai.azure.com` using your GitHub fine-grai
 
 **Requires:** `GITHUB_TOKEN` in `.env`
 
-### Google Gemini
+### 2. Google Gemini
 
 Accessed via the `google-generativeai` SDK with your Gemini API key.
 
@@ -378,6 +396,34 @@ Accessed via the `google-generativeai` SDK with your Gemini API key.
 **Requires:** `GEMINI_API_KEY` in `.env`
 **Get a key at:** <https://aistudio.google.com/app/apikey>
 
+### 3. vLLM (Self-Hosted)
+
+High-performance inference engine with OpenAI-compatible API.
+
+| Example Models | Description |
+|---|---|
+| `meta-llama/Llama-2-7b-chat-hf` | Meta Llama 2 7B |
+| `meta-llama/Meta-Llama-3-8B-Instruct` | Meta Llama 3 8B |
+| `mistralai/Mistral-7B-Instruct-v0.2` | Mistral 7B Instruct |
+| `Qwen/Qwen-7B-Chat` | Qwen 7B Chat |
+
+**Requires:** `VLLM_BASE_URL` in `.env` (e.g., `http://localhost:8000/v1`)
+**Setup:** See [docs/vllm-ollama-integration.md](docs/vllm-ollama-integration.md)
+
+### 4. Ollama (Local Runner)
+
+Local LLM runner for development and offline use.
+
+| Example Models | Description |
+|---|---|
+| `llama2`, `llama2:7b`, `llama2:13b` | Meta Llama 2 variants |
+| `llama3:8b`, `llama3:70b` | Meta Llama 3 variants |
+| `mistral`, `mistral:7b` | Mistral AI models |
+| `codellama`, `codellama:13b` | Code-optimized Llama |
+
+**Requires:** `OLLAMA_BASE_URL` in `.env` (e.g., `http://localhost:11434/v1`)
+**Setup:** See [docs/vllm-ollama-integration.md](docs/vllm-ollama-integration.md)
+
 ### Switching Models
 
 Send in any chat:
@@ -385,9 +431,301 @@ Send in any chat:
 /model gemini-2.5-flash
 /model gpt-4o
 /model claude-3-opus
+/model meta-llama/Llama-2-7b-chat-hf
+/model llama2
 ```
 
-The `AIRouter` selects the backend automatically: model names beginning with `gemini` route to Gemini; all others route to GitHub Models.
+The `AIRouter` selects the backend automatically:
+- Model names beginning with `gemini` → Gemini
+- Model names containing `/` or starting with `vllm:` → vLLM
+- Model names matching Ollama patterns or starting with `ollama:` → Ollama
+- All others → GitHub Models
+
+---
+
+## Platform Integration
+
+AIOps Orchestrator integrates with **Nutanix, VMware, Kubernetes, and OpenShift** for infrastructure management operations. Platform authentication supports both **database configuration** (production) and **environment variables** (local dev/CI/CD).
+
+### Supported Platforms
+
+| Platform | Type | Auth Methods | Operations |
+|----------|------|--------------|------------|
+| **Nutanix Prism Central** | Hypervisor | Basic Auth, API Key | VM management, cluster monitoring |
+| **VMware vCenter** | Hypervisor | Session-based (Basic Auth) | VM, host, datastore management |
+| **Kubernetes** | Container | Bearer Token, Kubeconfig, Certificate | Pod, deployment, node operations |
+| **OpenShift** | Container | OAuth Token, ServiceAccount | Projects, routes, builds, images |
+
+### Authentication Configuration
+
+**Two methods supported (priority order):**
+
+1. **Database Configuration** (Production Default)
+   - Store credentials in `platform_configs` table
+   - Supports multiple platforms per type
+   - Centralized management via admin API
+   - Credentials encrypted at rest
+
+2. **Environment Variables** (Local Dev / CI/CD)
+   - Fallback for platforms not in database
+   - Useful for Docker Compose, Kubernetes Secrets
+   - Ideal for testing and CI/CD pipelines
+
+### Environment Variable Configuration
+
+```bash
+# Nutanix Prism Central
+export NUTANIX_ENDPOINT="https://prism-central.example.com:9440"
+export NUTANIX_USERNAME="admin"
+export NUTANIX_PASSWORD="your-secure-password"
+export NUTANIX_VERIFY_SSL="true"
+
+# VMware vCenter
+export VMWARE_ENDPOINT="https://vcenter.example.com"
+export VMWARE_USERNAME="administrator@vsphere.local"
+export VMWARE_PASSWORD="your-secure-password"
+export VMWARE_VERIFY_SSL="true"
+
+# Kubernetes
+export K8S_ENDPOINT="https://k8s-api.example.com:6443"
+export K8S_TOKEN="eyJhbGciOiJSUzI1NiIsImtpZCI6..."  # ServiceAccount token
+export K8S_VERIFY_SSL="true"
+
+# OpenShift
+export OPENSHIFT_ENDPOINT="https://api.openshift.example.com:6443"
+export OPENSHIFT_TOKEN="sha256~your-oauth-token"  # From 'oc whoami -t'
+export OPENSHIFT_VERIFY_SSL="true"
+```
+
+### Platform Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as AIOps API
+    participant Registry as Platform Registry
+    participant DB as PostgreSQL
+    participant Env as Environment Variables
+    participant Client as Platform Client
+    participant Platform as Nutanix/VMware/K8s/OpenShift
+
+    User->>API: Request platform operation (e.g., list VMs)
+    API->>Registry: get_client("production-nutanix")
+    
+    alt Platform in database
+        Registry->>DB: SELECT * FROM platform_configs WHERE name=?
+        DB-->>Registry: PlatformConfigModel
+        Registry->>Registry: _model_to_config()
+        Note over Registry: Decrypt password<br/>if needed
+    else Platform not in database
+        Registry->>Env: Load env vars (NUTANIX_*)
+        Note over Env: NUTANIX_ENDPOINT<br/>NUTANIX_USERNAME<br/>NUTANIX_PASSWORD
+        Env-->>Registry: PlatformConfigModel from env
+    end
+
+    Registry->>Client: PlatformFactory.create_client(config)
+    Client->>Client: initialize()
+    
+    alt Nutanix/VMware (username/password)
+        Client->>Platform: Authenticate with Basic Auth
+        Platform-->>Client: Session token (VMware) or Success (Nutanix)
+    else Kubernetes/OpenShift (token)
+        Client->>Platform: Authenticate with Bearer Token
+        Platform-->>Client: Token validated
+    end
+
+    Client-->>Registry: Initialized client (cached)
+    Registry-->>API: Platform client
+    API->>Client: list_vms() / list_pods() / etc.
+    Client->>Platform: API request (GET /api/v3/vms, etc.)
+    Platform-->>Client: Response (VMs, pods, etc.)
+    Client-->>API: Processed data
+    API-->>User: Response
+```
+
+### Platform Registry Initialization
+
+```mermaid
+sequenceDiagram
+    participant App as Application Startup
+    participant Registry as Platform Registry
+    participant DB as PostgreSQL
+    participant Env as Environment
+    participant Logger
+
+    App->>Registry: initialize()
+    
+    Note over Registry: Load from database first
+    Registry->>DB: SELECT * FROM platform_configs WHERE enabled=true
+    DB-->>Registry: [Config1, Config2, ...]
+    
+    loop For each database config
+        Registry->>Registry: Store in _configs dict
+        Registry->>Logger: Log "platform_config_loaded_from_db"
+    end
+
+    Note over Registry: Load from environment (fallback)
+    Registry->>Env: Check NUTANIX_ENDPOINT
+    alt NUTANIX_ENDPOINT exists
+        Registry->>Registry: Create nutanix-env config
+        Registry->>Logger: Log "platform_config_loaded_from_env"
+    end
+
+    Registry->>Env: Check VMWARE_ENDPOINT
+    alt VMWARE_ENDPOINT exists
+        Registry->>Registry: Create vmware-env config
+        Registry->>Logger: Log "platform_config_loaded_from_env"
+    end
+
+    Registry->>Env: Check K8S_ENDPOINT
+    alt K8S_ENDPOINT exists
+        Registry->>Registry: Create kubernetes-env config
+        Registry->>Logger: Log "platform_config_loaded_from_env"
+    end
+
+    Registry->>Env: Check OPENSHIFT_ENDPOINT
+    alt OPENSHIFT_ENDPOINT exists
+        Registry->>Registry: Create openshift-env config
+        Registry->>Logger: Log "platform_config_loaded_from_env"
+    end
+
+    Registry->>Logger: Log "platform_registry_initialized" with count
+    Registry-->>App: Initialized (configs ready, clients created on-demand)
+```
+
+### Platform Operation Example
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Chat as Telegram/Slack
+    participant Handler as Message Handler
+    participant Platform as Platform Handler
+    participant Registry as Platform Registry
+    participant Client as Nutanix Client
+    participant Prism as Prism Central API
+
+    User->>Chat: "List VMs on production Nutanix"
+    Chat->>Handler: process_message()
+    Handler->>Platform: handle_platform_request("nutanix", "list_vms")
+    
+    Platform->>Registry: get_client("production-nutanix")
+    
+    Note over Registry: Check cache first
+    alt Client cached
+        Registry-->>Platform: Cached client
+    else Client not cached
+        Registry->>Registry: Load config (DB or env)
+        Registry->>Client: Create and initialize
+        Client->>Prism: POST /api/nutanix/v3/users/me (auth check)
+        Prism-->>Client: 200 OK
+        Registry->>Registry: Cache client
+        Registry-->>Platform: New client
+    end
+
+    Platform->>Client: list_vms()
+    Client->>Prism: POST /api/nutanix/v3/vms/list
+    Note over Client,Prism: Headers:<br/>Authorization: Basic base64(user:pass)<br/>Content-Type: application/json
+    Prism-->>Client: {"entities": [...], "metadata": {...}}
+    Client->>Client: Parse response
+    Client-->>Platform: [VMResource, VMResource, ...]
+    
+    Platform->>Platform: Format VMs for chat
+    Platform-->>Handler: "Found 25 VMs:\n- api-server-01 (ON)\n- db-server-01 (ON)..."
+    Handler-->>Chat: Send formatted message
+    Chat-->>User: Display VM list
+```
+
+### VMware Session Management
+
+```mermaid
+sequenceDiagram
+    participant Client as VMware Client
+    participant vCenter as vCenter API
+    participant Cache
+
+    Note over Client: First request
+    Client->>vCenter: POST /rest/com/vmware/cis/session
+    Note over Client,vCenter: Authorization: Basic base64(user:pass)
+    vCenter-->>Client: {"value": "session-abc123def456"}
+    Client->>Cache: Store session_id
+    
+    Note over Client: Subsequent requests
+    Client->>Cache: Get session_id
+    Cache-->>Client: session-abc123def456
+    Client->>vCenter: GET /rest/vcenter/vm
+    Note over Client,vCenter: vmware-api-session-id: session-abc123def456
+    vCenter-->>Client: {"value": [vm1, vm2, ...]}
+    
+    Note over Client: Session expired (401)
+    Client->>vCenter: GET /rest/vcenter/vm
+    vCenter-->>Client: 401 Unauthorized
+    Client->>Client: Detect 401, clear cached session
+    Client->>vCenter: POST /rest/com/vmware/cis/session (re-auth)
+    vCenter-->>Client: {"value": "session-xyz789abc"}
+    Client->>Cache: Update session_id
+    Client->>vCenter: GET /rest/vcenter/vm (retry)
+    vCenter-->>Client: 200 OK
+```
+
+### Kubernetes Bearer Token Flow
+
+```mermaid
+sequenceDiagram
+    participant Client as Kubernetes Client
+    participant K8s as K8s API Server
+    participant SA as ServiceAccount
+
+    Note over SA: Create ServiceAccount & Token
+    SA->>K8s: kubectl create serviceaccount aiops-sa
+    SA->>K8s: kubectl create token aiops-sa --duration=8760h
+    K8s-->>SA: eyJhbGciOiJSUzI1NiIsImtpZCI6...
+    
+    Note over Client: Initialize with token
+    Client->>Client: config.token = env.K8S_TOKEN
+    Client->>Client: headers["Authorization"] = f"Bearer {token}"
+    
+    Note over Client: First API call
+    Client->>K8s: GET /api/v1/namespaces/production/pods
+    Note over Client,K8s: Authorization: Bearer eyJhbGc...
+    K8s->>K8s: Validate JWT signature
+    K8s->>K8s: Check RBAC permissions
+    alt Token valid + permissions OK
+        K8s-->>Client: 200 OK + pod list
+    else Token invalid/expired
+        K8s-->>Client: 401 Unauthorized
+        Client->>Client: Raise authentication error
+    else Insufficient permissions
+        K8s-->>Client: 403 Forbidden
+        Client->>Client: Raise authorization error
+    end
+```
+
+### Security Best Practices
+
+1. **Credential Storage**
+   - Use database for production (encrypted at rest)
+   - Environment variables for dev/test only
+   - Never commit credentials to version control
+   - Rotate credentials regularly (90 days)
+
+2. **SSL Verification**
+   - Always set `verify_ssl: true` in production
+   - Use `verify_ssl: false` only for testing with self-signed certs
+   - Install CA certificates for internal PKI
+
+3. **Least Privilege**
+   - Nutanix: VM Operator role (not Cluster Admin)
+   - VMware: Read-only + VM Power Operations
+   - Kubernetes: Namespace-scoped ServiceAccount
+   - OpenShift: Project-level permissions only
+
+4. **Token Expiration**
+   - Kubernetes: Create tokens with explicit duration (not infinite)
+   - VMware: Sessions auto-expire (handled by auto-refresh)
+   - OpenShift: OAuth tokens expire (refresh with `oc login`)
+
+See [docs/PLATFORM_AUTHENTICATION.md](docs/PLATFORM_AUTHENTICATION.md) and [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for detailed guides.
 
 ---
 
@@ -784,7 +1122,45 @@ aiops-orchestrator/
 
 ## Development
 
-### Run Tests
+### Testing
+
+The project includes a comprehensive Makefile for testing all features with mock servers.
+
+```bash
+# Show all available test commands
+make help
+
+# Run all tests (unit + integration + e2e)
+make test
+
+# Run quick unit tests (fast feedback)
+make test-quick
+
+# Run tests with coverage report
+make test-coverage
+
+# Run specific test type
+make test-unit         # Unit tests only
+make test-integration  # Integration tests (with mock servers)
+make test-e2e          # E2E tests (platforms, A2A, K8s)
+make test-aiops        # AIOps E2E tests
+
+# Mock server management
+make start-mock-servers  # Start vLLM and Ollama mock servers
+make check-mock-servers  # Verify mock servers are running
+make stop-mock-servers   # Stop all mock servers
+
+# Code quality
+make lint              # Run linting (ruff)
+make format            # Auto-format code (black + ruff)
+make validate          # Run validation script (36 checks)
+
+# Cleanup
+make clean             # Clean test artifacts
+make clean-all         # Deep clean (includes .pyc, __pycache__)
+```
+
+### Run Tests (Direct pytest)
 
 ```bash
 pip install -r requirements.txt

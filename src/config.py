@@ -3,7 +3,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import Field
@@ -23,10 +23,29 @@ class Settings(BaseSettings):
     )
 
     # GitHub Models API
-    github_token: str = Field(..., description="GitHub fine-grained personal access token")
+    github_token: str | None = Field(
+        default=None, 
+        description="GitHub fine-grained personal access token"
+    )
 
     # Google Gemini API
     gemini_api_key: str | None = Field(None, description="Google Gemini API key")
+
+    # vLLM Configuration
+    vllm_base_url: str | None = Field(
+        None,
+        description="vLLM server URL (e.g., http://localhost:8000/v1)",
+    )
+    vllm_api_key: str | None = Field(
+        None,
+        description="vLLM API key (optional, depends on server config)",
+    )
+
+    # Ollama Configuration
+    ollama_base_url: str | None = Field(
+        default="http://localhost:11434/v1",
+        description="Ollama server URL",
+    )
 
     # Telegram Bot
     telegram_token: str | None = Field(None, description="Telegram bot token")
@@ -123,6 +142,28 @@ class Settings(BaseSettings):
     mcp_tool_timeout_seconds: int = Field(
         default=60, ge=10, description="Timeout for a single MCP tool call (seconds)"
     )
+
+    # Platform Authentication - Nutanix
+    nutanix_endpoint: str | None = Field(None, description="Nutanix Prism Central endpoint")
+    nutanix_username: str | None = Field(None, description="Nutanix username")
+    nutanix_password: str | None = Field(None, description="Nutanix password")
+    nutanix_verify_ssl: bool = Field(True, description="Verify Nutanix SSL certificates")
+
+    # Platform Authentication - VMware
+    vmware_endpoint: str | None = Field(None, description="VMware vCenter endpoint")
+    vmware_username: str | None = Field(None, description="VMware username")
+    vmware_password: str | None = Field(None, description="VMware password")
+    vmware_verify_ssl: bool = Field(True, description="Verify VMware SSL certificates")
+
+    # Platform Authentication - Kubernetes
+    k8s_endpoint: str | None = Field(None, description="Kubernetes API server endpoint")
+    k8s_token: str | None = Field(None, description="Kubernetes bearer token")
+    k8s_verify_ssl: bool = Field(True, description="Verify Kubernetes SSL certificates")
+
+    # Platform Authentication - OpenShift
+    openshift_endpoint: str | None = Field(None, description="OpenShift API server endpoint")
+    openshift_token: str | None = Field(None, description="OpenShift bearer token")
+    openshift_verify_ssl: bool = Field(True, description="Verify OpenShift SSL certificates")
 
     # AIOps - Input limits
     max_log_bytes: int = Field(
