@@ -7,31 +7,47 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](Dockerfile)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psycopg/black)
-[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](RELEASE_v2.1.0.md)
-[![Status](https://img.shields.io/badge/status-Production--Stable-success.svg)](RELEASE_v2.1.0.md)
+[![Version](https://img.shields.io/badge/version-2.2.0-brightgreen.svg)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-Production--Stable-success.svg)](CHANGELOG.md)
 
 ---
 
-## 🎉 Latest Release: v2.1.0 (July 28, 2026)
+## 🎉 Latest Release: v2.2.0 (August 1, 2026)
 
-**Status**: Production Ready ✅ | **[Full Release Notes →](RELEASE_v2.1.0.md)**
+**Status**: Production Ready ✅ | **[Full Changelog →](CHANGELOG.md)**
 
-### New in v2.1.0: Multi-Backend LLM Support 🚀
+### New in v2.2.0: Custom AIOps Fine-Tuned Model 🧠
 
-Expanded LLM backend support from 2 to **4 backends**:
-- **GitHub Models** - GPT-4o, Claude-3, Llama-3 (production default)
-- **Google Gemini** - 2.5 Pro, 2.5 Flash, 2.0 Flash (Google ecosystem)
-- **vLLM** - Self-hosted high-performance inference (50-500ms latency, 100% on-premises)
-- **Ollama** - Local LLM runner for development (offline, free, privacy-focused)
+Integrates a purpose-built fine-tuned model and adds full support for Ollama `hf.co/` model references:
 
-**Key Features**:
-- ✅ Intelligent routing by model name pattern
-- ✅ OpenAI-compatible API for vLLM and Ollama
-- ✅ Mock servers for testing without installations
-- ✅ Comprehensive documentation (2,500+ lines)
-- ✅ 100% backward compatible
+- **[`hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`](https://huggingface.co/htunn/gemma-4-e2b-aiops-gguf)** — Gemma 4 E2B LoRA fine-tuned on K8s, Nutanix, VMware, AD, ADFS, PKI scenarios; outputs execution-ready JSON commands
+- **`Modelfile`** — ships an `aiops-orchestrator:latest` Ollama agent with AIOps system prompt baked in
+- **[`htunn/gemma-4-e2b-aiops-hf`](https://huggingface.co/htunn/gemma-4-e2b-aiops-hf)** — safetensors variant for vLLM (`vllm serve htunn/gemma-4-e2b-aiops-hf --dtype bfloat16`)
+- **`hf.co/` routing fix** — HuggingFace-format Ollama refs are now correctly dispatched to `OllamaClient` (previously misrouted to vLLM)
+- **Thinking model streaming** — `OllamaClient` yields `delta.reasoning` tokens from Gemma 4's reasoning phase
+- **Live e2e test suite** — `tests/e2e/test_ollama_aiops_live.py` (6 tests against real stack + Ollama)
 
-**Documentation**: [vLLM/Ollama Integration Guide](docs/vllm-ollama-integration.md) | [Testing Guide](docs/vllm-ollama-testing-guide.md) | [Production Readiness](docs/PRODUCTION_READINESS.md)
+**Quick start with the custom model:**
+```bash
+# Via Ollama (GGUF, ~3.5 GB RAM)
+ollama run hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M
+# Or use the bundled agent
+ollama create aiops-orchestrator -f Modelfile
+
+# Via vLLM (safetensors, ~9.5 GB RAM)
+vllm serve htunn/gemma-4-e2b-aiops-hf --dtype bfloat16
+```
+
+**Documentation**: [vLLM/Ollama Integration Guide](docs/vllm-ollama-integration.md) | [Testing Guide](docs/vllm-ollama-testing-guide.md)
+
+<details>
+<summary>Previous: v2.1.0 — Multi-Backend LLM Support</summary>
+
+**Status**: Production Ready ✅ | **[Release Notes →](RELEASE_v2.1.0.md)**
+
+Expanded LLM backend support from 2 to **4 backends**: GitHub Models, Google Gemini, vLLM, Ollama. Intelligent routing by model name pattern, OpenAI-compatible API for vLLM and Ollama, mock servers for testing.
+
+</details>
 
 ---
 
@@ -130,8 +146,9 @@ AIOps Orchestrator connects **Telegram and Slack** to a powerful backend engine 
 - **Multi-backend routing (4 backends)** — `AIRouter` intelligently dispatches to GitHub Models, Gemini, vLLM, or Ollama based on model name prefix/pattern
 - **GitHub Models** — GPT-4o, GPT-4, Claude-3 Opus, Llama-3-70B via `models.inference.ai.azure.com`
 - **Google Gemini** — Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash, 1.5 Pro, 1.5 Flash
-- **vLLM** — Self-hosted high-performance inference (Llama, Mistral, Qwen, DeepSeek, etc.)
-- **Ollama** — Local LLM runner for development (llama2, mistral, codellama, phi, etc.)
+- **vLLM** — Self-hosted high-performance inference (Llama, Mistral, Qwen, DeepSeek, [`htunn/gemma-4-e2b-aiops-hf`](https://huggingface.co/htunn/gemma-4-e2b-aiops-hf), etc.)
+- **Ollama** — Local LLM runner (llama2, mistral, codellama, phi, [`hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`](https://huggingface.co/htunn/gemma-4-e2b-aiops-gguf), etc.)
+- **Custom fine-tuned AIOps model** — Gemma 4 E2B LoRA fine-tuned on K8s/Nutanix/VMware/AD/ADFS/PKI scenarios; run via Ollama (GGUF, 3.5 GB) or vLLM (FP16, 9.5 GB)
 - **Model selection priority** — conversation override -> user pref -> channel default -> system default
 - **Conversation history** — stored in PostgreSQL, windowed into context
 - **Streaming-compatible** — OpenAI SDK for GitHub Models, vLLM, and Ollama; native async client for Gemini
