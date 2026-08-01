@@ -113,10 +113,14 @@ class OllamaClient(BaseAIClient):
                 stream=True,
                 **kwargs,
             )
-
             async for chunk in cast(Any, stream):
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                # Thinking models (e.g. Gemma 4) stream text via `reasoning`, not `content`
+                text = delta.content or getattr(delta, "reasoning", "") or ""
+                if text:
+                    yield text
 
         except Exception as e:
             logger.error("ollama_streaming_failed", model=model, error=str(e))
@@ -124,12 +128,15 @@ class OllamaClient(BaseAIClient):
 
     def is_model_supported(self, model: str) -> bool:
         """Check if model is supported."""
+        model_lower = model.lower()
+        # HuggingFace-format Ollama refs are always supported
+        if model_lower.startswith("hf.co/"):
+            return True
         common_models = [
             "llama2", "llama3", "mistral", "mixtral", "codellama",
             "phi", "neural-chat", "vicuna", "qwen", "deepseek-coder",
-            "orca-mini", "solar", "yi"
+            "orca-mini", "solar", "yi", "gemma"
         ]
-        model_lower = model.lower()
         return any(model_lower.startswith(m) or model_lower == m for m in common_models)
 
     def list_supported_models(self) -> list[str]:
@@ -158,4 +165,6 @@ class OllamaClient(BaseAIClient):
             "solar:10.7b",
             "yi:6b",
             "yi:34b",
+            "gemma4:e2b",
+            "hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M",
         ]

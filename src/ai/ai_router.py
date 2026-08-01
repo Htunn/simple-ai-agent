@@ -90,6 +90,9 @@ class AIRouter(BaseAIClient):
         """
         if model.startswith("vllm:"):
             return True
+        # hf.co/ is Ollama's HuggingFace model ref format, not vLLM
+        if model.startswith("hf.co/"):
+            return False
         return "/" in model
 
     def _is_ollama_model(self, model: str) -> bool:
@@ -101,13 +104,16 @@ class AIRouter(BaseAIClient):
         if model.startswith("ollama:"):
             return True
         
+        model_lower = model.lower()
+        # HuggingFace-format Ollama model refs (e.g., hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M)
+        if model_lower.startswith("hf.co/"):
+            return True
         # Common Ollama model names/patterns
         ollama_patterns = [
             "llama2", "llama3", "mistral", "mixtral", "codellama",
             "phi", "neural-chat", "vicuna", "qwen", "deepseek-coder",
-            "orca-mini", "solar", "yi"
+            "orca-mini", "solar", "yi", "gemma"
         ]
-        model_lower = model.lower()
         return any(model_lower.startswith(p) or model_lower == p for p in ollama_patterns)
 
     def _strip_provider_prefix(self, model: str) -> str:

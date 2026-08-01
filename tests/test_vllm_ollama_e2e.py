@@ -377,6 +377,130 @@ class TestRouterE2EMocked:
                         assert call_args.kwargs["model"] == "llama2"
 
 
+class TestHuggingFaceOllamaRouting:
+    """Tests for Ollama HuggingFace model ref routing (hf.co/ prefix)."""
+
+    def _make_settings(self, **kwargs):
+        settings = MagicMock()
+        settings.github_token = "test"
+        settings.gemini_api_key = None
+        settings.vllm_base_url = "http://localhost:8000/v1"
+        settings.ollama_base_url = "http://localhost:11434/v1"
+        for k, v in kwargs.items():
+            setattr(settings, k, v)
+        return settings
+
+    def test_hf_model_is_not_vllm(self):
+        """hf.co/ refs must NOT be routed to vLLM."""
+        settings = self._make_settings()
+        with patch("src.ai.ai_router.get_settings", return_value=settings), \
+             patch("src.ai.vllm_client.get_settings", return_value=settings), \
+             patch("src.ai.ollama_client.get_settings", return_value=settings), \
+             patch("src.ai.github_models.AsyncOpenAI"), \
+             patch("src.ai.vllm_client.AsyncOpenAI"), \
+             patch("src.ai.ollama_client.AsyncOpenAI"):
+            router = AIRouter()
+            assert not router._is_vllm_model("hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M")
+            assert not router._is_vllm_model("hf.co/mistralai/Mistral-7B-Instruct-v0.3")
+
+    def test_hf_model_is_ollama(self):
+        """hf.co/ refs must be routed to Ollama."""
+        settings = self._make_settings()
+        with patch("src.ai.ai_router.get_settings", return_value=settings), \
+             patch("src.ai.vllm_client.get_settings", return_value=settings), \
+             patch("src.ai.ollama_client.get_settings", return_value=settings), \
+             patch("src.ai.github_models.AsyncOpenAI"), \
+             patch("src.ai.vllm_client.AsyncOpenAI"), \
+             patch("src.ai.ollama_client.AsyncOpenAI"):
+            router = AIRouter()
+            assert router._is_ollama_model("hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M")
+            assert router._is_ollama_model("hf.co/mistralai/Mistral-7B-Instruct-v0.3")
+
+    def test_gemma_model_is_ollama(self):
+        """gemma* models must route to Ollama."""
+        settings = self._make_settings()
+        with patch("src.ai.ai_router.get_settings", return_value=settings), \
+             patch("src.ai.vllm_client.get_settings", return_value=settings), \
+             patch("src.ai.ollama_client.get_settings", return_value=settings), \
+             patch("src.ai.github_models.AsyncOpenAI"), \
+             patch("src.ai.vllm_client.AsyncOpenAI"), \
+             patch("src.ai.ollama_client.AsyncOpenAI"):
+            router = AIRouter()
+            assert router._is_ollama_model("gemma4:e2b")
+            assert router._is_ollama_model("gemma:7b")
+
+    @pytest.mark.asyncio
+    async def test_router_dispatches_hf_model_to_ollama(self):
+        """AIRouter must dispatch hf.co/ model to OllamaClient, not VLLMClient."""
+        settings = self._make_settings(vllm_base_url=None)
+        with patch("src.ai.ai_router.get_settings", return_value=settings), \
+             patch("src.ai.ollama_client.get_settings", return_value=settings), \
+             patch("src.ai.github_models.AsyncOpenAI"), \
+             patch("src.ai.ollama_client.AsyncOpenAI") as mock_ollama_openai:
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json.dumps({
+                "action": "remediate_auth",
+                "target_domain": "ADFS",
+                "service_account": "svc_k8s_cluster",
+                "steps": ["check_pki_cert_validity", "rotate_secret_k8s"],
+                "api_call": "POST /api/v1/auth/refresh",
+            })
+            mock_response.usage.total_tokens = 42
+
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+            mock_ollama_openai.return_value = mock_client
+
+            router = AIRouter()
+            messages = [
+                {
+                    "role": "user",
+                    "content": (
+                        "[AIOps-Agent] Node k8s-worker-03 status is NotReady. "
+                        "AD service account 'svc_k8s_cluster' authentication failed on ADFS."
+                    ),
+                }
+            ]
+            content, tokens = await router.generate_response(
+                messages=messages,
+                model="hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M",
+                temperature=0.3,
+                max_tokens=512,
+            )
+
+            result = json.loads(content)
+            assert result["action"] == "remediate_auth"
+            assert tokens == 42
+
+            call_args = mock_client.chat.completions.create.call_args
+            assert call_args.kwargs["model"] == "hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M"
+            assert call_args.kwargs["temperature"] == 0.3
+
+    def test_ollama_client_supports_hf_model(self):
+        """OllamaClient.is_model_supported() must accept hf.co/ refs."""
+        with patch("src.ai.ollama_client.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.ollama_base_url = "http://localhost:11434/v1"
+            mock_settings.return_value = settings
+            with patch("src.ai.ollama_client.AsyncOpenAI"):
+                client = OllamaClient()
+                assert client.is_model_supported("hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M")
+                assert client.is_model_supported("gemma4:e2b")
+                assert client.is_model_supported("gemma:7b")
+
+    def test_ollama_client_lists_custom_model(self):
+        """hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M appears in list_supported_models()."""
+        with patch("src.ai.ollama_client.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.ollama_base_url = "http://localhost:11434/v1"
+            mock_settings.return_value = settings
+            with patch("src.ai.ollama_client.AsyncOpenAI"):
+                client = OllamaClient()
+                models = client.list_supported_models()
+                assert "hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M" in models
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v", "-s"])

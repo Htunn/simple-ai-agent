@@ -7,6 +7,66 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.2.0] — 2026-08-01
+
+### 🚀 Minor Release: Custom Fine-tuned Model Support & Ollama Thinking Model Streaming
+
+This release integrates support for custom HuggingFace GGUF models hosted via Ollama, adds full routing support for `hf.co/` model refs, fixes streaming for thinking models (reasoning-first architectures like Gemma 4), and ships a live end-to-end test suite for Ollama integration.
+
+### Added
+
+#### 🧠 Custom Fine-tuned AIOps Model
+- **`hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`** — Gemma 4 E2B (2B params) LoRA fine-tuned for AIOps scenarios
+  - Trained on K8s, Nutanix, VMware, Active Directory, ADFS, and PKI incident playbooks
+  - Q4_K_M quantisation (3.2 GB) for on-device inference on Apple Silicon and consumer GPUs
+  - Outputs structured JSON action commands for autonomous remediation
+  - Available via `ollama run hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`
+  - Mirrored as `aiops-orchestrator:latest` via custom `Modelfile`
+- **`Modelfile`** — Ollama agent configuration at repo root
+  - Sets AIOps system prompt, temperature 0.3, top-p 0.9, repeat_penalty 1.1
+  - `ollama create aiops-orchestrator -f Modelfile` to build locally
+
+#### 🦙 Ollama HuggingFace Model Ref Support
+- **`hf.co/` prefix routing** — HuggingFace-format Ollama model refs are now correctly dispatched to `OllamaClient`
+  - Previously misrouted to `VLLMClient` (vLLM also uses `/` in model paths)
+  - `AIRouter._is_vllm_model()` now explicitly excludes `hf.co/` prefix
+  - `AIRouter._is_ollama_model()` now recognises `hf.co/` prefix as an Ollama ref
+- **`gemma` pattern** added to Ollama model detection (`gemma4:e2b`, `gemma:7b`, etc.)
+- `OllamaClient.is_model_supported()` and `list_supported_models()` updated accordingly
+
+#### 🌊 Thinking Model Streaming
+- **`delta.reasoning` fallback** in `OllamaClient.stream_response()`
+  - Gemma 4 and other reasoning-first models emit tokens via `delta.reasoning`, not `delta.content`, during the thinking phase
+  - Streaming now yields `delta.reasoning` when `delta.content` is empty
+  - Empty-choices keep-alive chunks are safely skipped
+
+#### 🐳 docker-compose Ollama Integration
+- `OLLAMA_BASE_URL` and `DEFAULT_MODEL` environment variables added to the `app` service
+  - Default: `OLLAMA_BASE_URL=http://host.docker.internal:11434/v1`
+  - Default: `DEFAULT_MODEL=aiops-orchestrator`
+  - Container reaches host Ollama via `extra_hosts: host.docker.internal:host-gateway`
+
+#### 🧪 Live End-to-End Test Suite
+- **`tests/e2e/test_ollama_aiops_live.py`** — tests against the real docker-compose stack and local Ollama
+  - `TestOllamaAIOpsModelLive` — direct OllamaClient inference with the fine-tuned model
+    - `test_generate_response_aiops_model` — K8s + AD failure prompt → JSON action
+    - `test_generate_response_pki_scenario` — PKI cert expiry prompt
+    - `test_stream_response_aiops_model` — streaming with reasoning-phase token capture
+    - `test_hf_model_ref_routing` — verifies `hf.co/` routes to OllamaClient
+  - `TestDockerStackHealth` — stack health and metrics endpoints
+    - `test_health_endpoint_ok` — all services healthy
+    - `test_metrics_endpoint_ok` — Prometheus metrics present
+  - Auto-skip when Ollama is unreachable
+- **6 new routing unit tests** in `tests/test_vllm_ollama_e2e.py::TestHuggingFaceOllamaRouting`
+
+### Fixed
+
+- **`src/main.py` — `UnboundLocalError` on startup** — Stray `, agent_registry` expression after the `lifespan()` docstring caused Python to treat `agent_registry` as a local variable, crashing every app startup. Removed the stray expression and added `agent_registry` to the `global` declaration.
+- **`OllamaClient.stream_response()` — 0 chunks for thinking models** — Changed content check from `if chunk.choices[0].delta.content:` to also capture `delta.reasoning`, fixing streams that produce no `content` tokens during the thinking phase.
+- **JSON markdown fence stripping** — `str.strip("\`\`\`json")` strips individual characters; replaced with `re.sub()` for correct fence removal from LLM responses.
+
+---
+
 ## [2.1.0] — 2026-07-28
 
 ### 🚀 Minor Release: Multi-Backend LLM Support (vLLM & Ollama)

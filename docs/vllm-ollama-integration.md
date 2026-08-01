@@ -12,8 +12,8 @@ The AIOps Orchestrator now supports **four LLM backends**:
 |---------|----------|----------|----------------|
 | **GitHub Models** | Default provider for GPT, Claude, Llama via GitHub | OpenAI-compatible | `gpt-4`, `claude-3.5-sonnet`, `llama-3.1-70b` |
 | **Gemini** | Google's Gemini models | Google AI SDK | `gemini-2.0-flash`, `gemini-1.5-pro` |
-| **vLLM** | Self-hosted high-performance inference | OpenAI-compatible | `meta-llama/Llama-2-7b-chat-hf`, `mistralai/Mistral-7B-Instruct-v0.2` |
-| **Ollama** | Local LLM runner for laptops/servers | OpenAI-compatible | `llama2`, `mistral`, `codellama` |
+| **vLLM** | Self-hosted high-performance inference | OpenAI-compatible | `meta-llama/Llama-2-7b-chat-hf`, `htunn/gemma-4-e2b-aiops-hf` |
+| **Ollama** | Local LLM runner for laptops/servers | OpenAI-compatible | `llama2`, `mistral`, `hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M` |
 
 ---
 
@@ -38,17 +38,20 @@ await router.generate_response(messages, model="gemini-2.0-flash")
 await router.generate_response(messages, model="meta-llama/Llama-2-7b-chat-hf")
 await router.generate_response(messages, model="vllm:mistral")
 
-# Routes to Ollama (simple names or starts with "ollama:")
+# Routes to Ollama (simple names, ollama: prefix, or hf.co/ HuggingFace refs)
 await router.generate_response(messages, model="llama2")
 await router.generate_response(messages, model="ollama:codellama")
+await router.generate_response(messages, model="hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M")
 ```
 
 ### Routing Rules (Priority Order)
 
 1. **Gemini**: Model name starts with `"gemini-"` → `GeminiClient`
-2. **vLLM**: Model name contains `"/"` or starts with `"vllm:"` → `VLLMClient`
-3. **Ollama**: Model name matches Ollama patterns or starts with `"ollama:"` → `OllamaClient`
+2. **vLLM**: Model name contains `"/"` or starts with `"vllm:"`, **but not** `"hf.co/"` → `VLLMClient`
+3. **Ollama**: Starts with `"hf.co/"`, matches Ollama patterns (`llama`, `mistral`, `gemma`, etc.), or starts with `"ollama:"` → `OllamaClient`
 4. **GitHub Models**: Everything else → `GitHubModelsClient`
+
+> **Note**: `hf.co/` prefixed refs (e.g. `hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`) are Ollama's HuggingFace model reference format and are always routed to Ollama, never to vLLM.
 
 ---
 
@@ -167,11 +170,141 @@ Add to `.env`:
 
 ```bash
 OLLAMA_BASE_URL=http://localhost:11434/v1
+DEFAULT_MODEL=aiops-orchestrator  # optional: set the default model name
 ```
+
+> **docker-compose**: The `app` service passes `OLLAMA_BASE_URL` and `DEFAULT_MODEL` automatically. The container reaches a host-local Ollama via `host.docker.internal`.
 
 ---
 
-## Usage Examples
+## Custom AIOps Fine-Tuned Model
+
+AIOps Orchestrator ships a purpose-built fine-tuned model hosted on HuggingFace that is the **recommended default** for production AIOps workloads.
+
+### Model: `htunn/gemma-4-e2b-aiops-gguf`
+
+> **HuggingFace**: [hf.co/htunn/gemma-4-e2b-aiops-gguf](https://huggingface.co/htunn/gemma-4-e2b-aiops-gguf)  
+> **Source repo**: [github.com/Htunn/aiops-gemma4](https://github.com/Htunn/aiops-gemma4)
+
+| Property | Value |
+|---|---|
+| Base model | `google/gemma-4-E2B-it` |
+| Fine-tuning | LoRA (MLX, 16 layers, 600 iterations) |
+| Val loss | 3.665 → 0.097 |
+| Quantization | Q4_K_M (3.2 GB, 5.88 BPW) |
+| Inference RAM | ~3.5 GB (Q4_K_M) · ~9.5 GB (FP16) |
+| License | Apache 2.0 |
+
+The model evaluates multi-domain infrastructure telemetry and outputs strict, execution-ready JSON commands across: **Kubernetes · Nutanix · VMware ESXi · Active Directory · ADFS · PKI · Windows Server**.
+
+### Using with Ollama (GGUF — recommended)
+
+#### Option A: Direct HuggingFace ref
+
+Ollama can pull GGUF models directly from HuggingFace with no intermediate steps:
+
+```bash
+# Pull and run once
+ollama run hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M
+```
+
+Then set in `.env`:
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434/v1
+DEFAULT_MODEL=hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M
+```
+
+#### Option B: Custom Ollama agent (recommended for production)
+
+The repo includes a `Modelfile` that bakes in the AIOps system prompt and inference parameters:
+
+```bash
+# From repo root
+ollama create aiops-orchestrator -f Modelfile
+ollama run aiops-orchestrator
+```
+
+The `Modelfile` configures:
+- **System prompt**: autonomous AIOps orchestrator role across K8s, Nutanix, VMware, AD, ADFS, PKI
+- `temperature 0.3` — low temperature for deterministic JSON output
+- `top_p 0.9`, `top_k 40`, `repeat_penalty 1.1`
+
+Set in `.env`:
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434/v1
+DEFAULT_MODEL=aiops-orchestrator
+```
+
+#### Routing through AIRouter
+
+Both references are automatically routed to `OllamaClient`:
+
+```python
+router = AIRouter()
+
+# Direct HuggingFace ref — routed to Ollama (hf.co/ prefix)
+await router.generate_response(messages, model="hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M")
+
+# Custom agent name — routed to Ollama (gemma prefix)
+await router.generate_response(messages, model="aiops-orchestrator")
+```
+
+#### Streaming and thinking tokens
+
+Gemma 4 E2B is a **thinking model** — during streaming it emits reasoning tokens in the `reasoning` field rather than `content`. The `OllamaClient.stream_response()` handles this transparently, yielding both `delta.content` and `delta.reasoning` so callers always receive streamed text.
+
+### Using with vLLM (safetensors)
+
+A HuggingFace safetensors version is available at [`htunn/gemma-4-e2b-aiops-hf`](https://huggingface.co/htunn/gemma-4-e2b-aiops-hf) for vLLM or the Transformers library:
+
+```bash
+# Start vLLM with the AIOps fine-tuned model
+vllm serve htunn/gemma-4-e2b-aiops-hf --dtype bfloat16
+```
+
+Set in `.env`:
+
+```bash
+VLLM_BASE_URL=http://localhost:8000/v1
+DEFAULT_MODEL=htunn/gemma-4-e2b-aiops-hf
+```
+
+The model name contains `/` so `AIRouter` automatically routes it to `VLLMClient`:
+
+```python
+await router.generate_response(
+    messages=messages,
+    model="htunn/gemma-4-e2b-aiops-hf",
+    temperature=0.3,
+    max_tokens=1024,
+)
+```
+
+### Hardware requirements
+
+| Runtime | Min RAM | Platform |
+|---|---|---|
+| Ollama Q4_K_M (`hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`) | ~3.5 GB | macOS · Linux · Windows |
+| vLLM FP16 (`htunn/gemma-4-e2b-aiops-hf`) | ~9.5 GB | Linux (CUDA recommended) |
+| llama.cpp direct | ~3.5 GB | macOS · Linux · Windows |
+
+### Example output
+
+```
+Prompt: [AIOps-Agent] Node k8s-worker-03 status is NotReady.
+        Active Directory service account 'svc_k8s_cluster' authentication failed on ADFS.
+
+Response:
+{
+  "action": "remediate_auth",
+  "target_domain": "ADFS",
+  "service_account": "svc_k8s_cluster",
+  "steps": ["check_pki_cert_validity", "rotate_secret_k8s"],
+  "api_call": "POST /api/v1/auth/refresh"
+}
+```
 
 ### Using vLLM Models
 
@@ -286,6 +419,7 @@ response, tokens = await client.generate_response(
 
 The `VLLMClient` supports any model compatible with vLLM. Common examples:
 
+- **Custom AIOps model** (fine-tuned): [`htunn/gemma-4-e2b-aiops-hf`](https://huggingface.co/htunn/gemma-4-e2b-aiops-hf) (safetensors, FP16)
 - **Llama**: `meta-llama/Llama-2-7b-chat-hf`, `meta-llama/Meta-Llama-3-8B-Instruct`, `meta-llama/Meta-Llama-3-70B-Instruct`
 - **Mistral**: `mistralai/Mistral-7B-Instruct-v0.2`, `mistralai/Mixtral-8x7B-Instruct-v0.1`
 - **Qwen**: `Qwen/Qwen-7B-Chat`, `Qwen/Qwen-14B-Chat`
@@ -298,12 +432,13 @@ Detection: Model name contains `llama`, `mistral`, `qwen`, `phi`, `vicuna`, `yi`
 
 The `OllamaClient` supports models installed via `ollama pull`. Common examples:
 
+- **Custom AIOps model** (recommended): `hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M`, `aiops-orchestrator` (custom agent)
 - **Llama**: `llama2`, `llama2:7b`, `llama2:13b`, `llama2:70b`, `llama3:8b`, `llama3:70b`
 - **Mistral**: `mistral`, `mistral:7b`, `mixtral:8x7b`
 - **Code**: `codellama`, `codellama:7b`, `codellama:13b`, `deepseek-coder:6.7b`
 - **Other**: `phi`, `phi:2.7b`, `neural-chat`, `vicuna`, `qwen:7b`, `solar:10.7b`, `yi:6b`
 
-Detection: Model name matches `llama2`, `llama3`, `mistral`, `mixtral`, `codellama`, `phi`, `neural-chat`, `vicuna`, `qwen`, `deepseek-coder`, `orca-mini`, `solar`, or `yi`.
+Detection: Model name matches `llama2`, `llama3`, `mistral`, `mixtral`, `codellama`, `phi`, `neural-chat`, `vicuna`, `qwen`, `deepseek-coder`, `orca-mini`, `solar`, `yi`, `gemma`, or any `hf.co/` HuggingFace ref.
 
 ---
 

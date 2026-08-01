@@ -41,8 +41,8 @@ agent_registry: Any = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan manager.""", agent_registry
-    global router, handler, watchloop, api_watchloop, approval_manager, playbook_executor
+    """Application lifespan manager."""
+    global router, handler, watchloop, api_watchloop, approval_manager, playbook_executor, agent_registry
 
     logger.info("starting_application", environment=settings.environment)
 
