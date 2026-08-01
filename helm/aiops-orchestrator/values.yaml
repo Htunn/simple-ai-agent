@@ -69,17 +69,31 @@ secrets:
   # Example: "redis://user:pass@host:6379/0"
   externalRedisUrl: ""
 
+  # Google Gemini API key (required when using gemini-* models)
+  geminiApiKey: ""
+
+  # vLLM API key (optional — only if your vLLM server requires auth)
+  vllmApiKey: ""
+
 # ---------------------------------------------------------------------------
 # Application configuration (stored in a ConfigMap)
 # ---------------------------------------------------------------------------
 app:
   logLevel: "INFO"
   environment: "production"
+  # Use "aiops-orchestrator" for the custom fine-tuned AIOps model via Ollama,
+  # or "hf.co/htunn/gemma-4-e2b-aiops-gguf:Q4_K_M" for the direct HuggingFace ref.
   defaultModel: "gpt-4"
   sessionTtlSeconds: "3600"
   rateLimitPerMinute: "60"
   apiHost: "0.0.0.0"
   apiPort: "8000"
+
+  # LLM backend URLs
+  # Ollama: set to your Ollama server (e.g., http://ollama-service:11434/v1 inside cluster)
+  ollamaBaseUrl: ""
+  # vLLM: set to your vLLM server (e.g., http://vllm-service:8000/v1 inside cluster)
+  vllmBaseUrl: ""
 
   # AIOps settings
   aiops:

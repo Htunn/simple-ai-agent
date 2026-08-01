@@ -38,3 +38,11 @@ data:
 
   # Redis
   REDIS_URL: {{ include "aiops-orchestrator.redisUrl" . | quote }}
+
+  # LLM backends (v2.2.0)
+  {{- if .Values.app.ollamaBaseUrl }}
+  OLLAMA_BASE_URL: {{ .Values.app.ollamaBaseUrl | quote }}
+  {{- end }}
+  {{- if .Values.app.vllmBaseUrl }}
+  VLLM_BASE_URL: {{ .Values.app.vllmBaseUrl | quote }}
+  {{- end }}
